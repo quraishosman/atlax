@@ -1,0 +1,255 @@
+# =============================================================================
+# ATLAX Root Configuration
+# =============================================================================
+#
+# Authority: docs/13_CONFIGURATION.md
+#
+# This file defines all configurable parameters for ATLAX.
+# No strategy decision, threshold, or session window may be hardcoded in code.
+#
+# Values shown here are DEFAULTS. They are not CRT rules and must not be
+# treated as immutable trading logic. CRT behavior is defined only in
+# docs/rulebooks/CRT_RULEBOOK.md.
+#
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# CRT Detector Configuration
+# ---------------------------------------------------------------------------
+crt:
+  # Master toggle for CRT detection.
+  enabled: true
+
+  # Minimum parent candle range as a multiple of ATR.
+  # Authority: CRT-PARENT-004
+  # Example: 0.5 means parent range must be >= 0.5 * ATR.
+  # Prevents doji/tiny-range candles from triggering false detections.
+  min_parent_range_atr_multiple: 0.5
+
+  # Whether to require a 3rd (confirmation) candle for detection.
+  # Authority: CRT-BULL-001, CRT-BEAR-001
+  # true  = 3-candle model (higher reliability, one candle lag)
+  # false = 2-candle model (faster entry, fires on sweep candle close)
+  require_confirmation_candle: true
+
+  # Maximum gap allowed between sweep candle open and parent range boundary.
+  # Authority: CRT-SWEEP-INVALID-003
+  # Gaps larger than this invalidate the sweep. Smaller gaps are flagged
+  # with lower quality metadata but still allowed.
+  # Value is in price units (e.g., 0.0005 = 5 pips for 4-decimal forex).
+  max_gap_tolerance_pips: 0.0005
+
+  # Small tolerance for price comparisons to handle broker rounding quirks.
+  # Applied to all strict inequality checks in rules.py.
+  # Value is in price units.
+  price_comparison_tolerance_pips: 0.00001
+
+  # Pip size for the default instrument class.
+  # Used to calculate sweep_distance_pips in quality metadata.
+  # Override per-symbol if needed in future configuration.
+  pip_size: 0.0001
+
+  # Allowed timeframes for CRT detection.
+  # Authority: CRT-DATA-003
+  # The same detection logic applies across all timeframes.
+  allowed_timeframes:
+    - M1
+    - M5
+    - M15
+    - M30
+    - H1
+    - H4
+    - D1
+    - W1
+    - MN
+
+  # HTF range -> LTF entry timeframe pairings.
+  # Authority: CRT-MTF-001
+  # These are configurable defaults, not fixed values.
+  timeframe_pairings:
+    MN: D1
+    W1: H4
+    D1: H1
+    H4: M15
+    H1: M5
+    M15: M1
+
+  # Kill zone session windows (UTC).
+  # Authority: CRT-SESSION-001
+  # CRT setups during these windows have the highest probability.
+  kill_zones:
+    - name: London Open
+      utc_start: "02:00"
+      utc_end: "05:00"
+    - name: New York AM
+      utc_start: "12:00"
+      utc_end: "15:00"
+
+# ---------------------------------------------------------------------------
+# Strategy Engine Configuration
+# ---------------------------------------------------------------------------
+strategy:
+  enabled: true
+  strategy_name: CRTStrategy
+
+  # Block candidates during high-impact news (future feature — off for v1)
+  news_filter_enabled: false
+
+  # Block candidates when spread exceeds max_spread_pips
+  spread_filter_enabled: false
+  max_spread_pips: 3.0
+
+  # Trader profiles — all three active per user decision
+  profiles:
+    - name: scalper
+      enabled: true
+      allowed_timeframes: [M1, M5, M15]
+      # Scalpers: speed matters, no HTF bias required
+      require_session_alignment: true
+      require_htf_trend_alignment: false
+      min_confidence_threshold: 55.0
+
+    - name: day_trader
+      enabled: true
+      allowed_timeframes: [M15, M30, H1]
+      # Day traders: session timing + moderate confluence
+      require_session_alignment: true
+      require_htf_trend_alignment: false
+      min_confidence_threshold: 65.0
+
+    - name: swing_trader
+      enabled: true
+      allowed_timeframes: [H1, H4, D1]
+      # Swing traders: strictest filters, HTF bias required
+      require_session_alignment: false
+      require_htf_trend_alignment: false
+      min_confidence_threshold: 70.0
+
+# ---------------------------------------------------------------------------
+# Confidence Engine Configuration
+# ---------------------------------------------------------------------------
+confidence:
+  # Scoring model version — increment when weights change for audit traceability
+  version: "1.0.0"
+
+  # Scoring weights — MUST sum to exactly 100.0
+  # Authority: docs/09_CONFIDENCE_ENGINE.md
+  weights:
+    session_alignment: 15.0    # Kill-zone timing (London/NY)
+    sweep_distance:    15.0    # How far price raided liquidity (pips)
+    close_location:    20.0    # How deep price recovered into the range
+    sweep_wick_ratio:  10.0    # Aggressiveness of the liquidity grab
+    htf_zone:          15.0    # Parent at HTF structural level
+    htf_trend:         10.0    # Direction aligns with HTF trend
+    fvg:                5.0    # Fair Value Gap formed after sweep
+    msb_ltf:           10.0    # LTF market structure break confirmation
+    # Total:           100.0
+
+  # Scoring range parameters for continuous factors
+  scoring_params:
+    # sweep_distance: ideal pip range for a CRT liquidity grab
+    sweep_distance_ideal_min_pips: 3.0
+    sweep_distance_ideal_max_pips: 30.0
+
+    # close_location: ideal ratio for bullish (high = strong recovery)
+    close_location_bull_ideal_min: 0.40
+
+    # close_location: ideal ratio for bearish (low = strong recovery)
+    close_location_bear_ideal_max: 0.60
+
+    # sweep_wick_ratio: ideal wick-to-range ratio (not too weak, not overextended)
+    sweep_wick_ideal_min: 0.05
+    sweep_wick_ideal_max: 0.50
+
+# ---------------------------------------------------------------------------
+# Alert Engine Configuration
+# ---------------------------------------------------------------------------
+alerts:
+  enabled: true
+
+  # Structured JSON log channel — always on, permanent audit trail
+  log_channel_enabled: true
+
+  # Deduplication: minimum seconds between alerts for the same
+  # (symbol, timeframe, profile, direction) combination.
+  # Authority: docs/03_ARCHITECTURE.md (Alert Deduplication)
+  # Set to 0 to disable deduplication entirely.
+  deduplication_window_seconds: 300
+
+  # Suppress alerts whose confidence score is below the profile's
+  # min_confidence_threshold setting. Suppressed alerts are still logged.
+  suppress_below_threshold: true
+
+  # Telegram delivery channel
+  telegram:
+    enabled: false          # Set to true and add credentials to activate
+    # bot_token and chat_id should be provided via environment variables:
+    #   ATLAX_TELEGRAM_BOT_TOKEN
+    #   ATLAX_TELEGRAM_CHAT_ID
+    # OR set directly here for local development only (docs/16_SECURITY.md)
+    bot_token: ""
+    chat_id: ""
+    parse_mode: HTML
+    timeout_seconds: 10.0
+    retry_attempts: 2
+
+# ---------------------------------------------------------------------------
+# Market Data Feed Configuration (Phase 9)
+# ---------------------------------------------------------------------------
+market_data:
+  enabled: true
+
+  # Seconds to wait between full scan cycles
+  # 60 = scan every minute (suitable for M1-H4 monitoring)
+  poll_interval_seconds: 60
+
+  # MT5 terminal connection settings
+  # Password should be provided via ATLAX_MT5_PASSWORD env var (docs/16_SECURITY.md)
+  mt5:
+    account: 0          # 0 = use currently logged-in account
+    server: ""          # "" = use terminal default
+    password: ""        # Use env var ATLAX_MT5_PASSWORD instead
+    timeout_ms: 60000
+    max_retries: 3
+
+  # Instruments and timeframes to monitor
+  # Add or remove entries to expand or narrow coverage
+  instruments:
+    # Scalper instruments (M1/M5/M15)
+    - symbol: EURUSD
+      timeframe: M15
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+
+    - symbol: GBPUSD
+      timeframe: M15
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+
+    # Day trader instruments (M30/H1)
+    - symbol: EURUSD
+      timeframe: H1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+
+    - symbol: XAUUSD
+      timeframe: H1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01   # Gold: 1 pip = 0.01
+
+    # Swing trader instruments (H4/D1)
+    - symbol: EURUSD
+      timeframe: H4
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+
+    - symbol: GBPUSD
+      timeframe: H4
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
