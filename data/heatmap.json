@@ -1,0 +1,12 @@
+{
+  "GBPUSD_H1": {
+    "bias": "Bearish Setup",
+    "distance_pips": -1.5,
+    "parent_high": 1.35038,
+    "parent_low": 1.34964,
+    "status": "Sweeping Now",
+    "symbol": "GBPUSD",
+    "timeframe": "H1",
+    "violation_pct": 65.0
+  }
+}
