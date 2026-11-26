@@ -11,8 +11,12 @@ Authority: docs/13_CONFIGURATION.md, docs/04_SYSTEM_DESIGN.md
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
+
+from core.settings.timeframe_policy import is_retired_timeframe
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,10 @@ class WatchedInstrument:
     pip_size: float
 
     def __post_init__(self) -> None:
+        if is_retired_timeframe(self.timeframe):
+            raise ValueError(
+                f"timeframe {self.timeframe!r} is retired from active ATLAX scanning"
+            )
         if self.candle_count < 3:
             raise ValueError(
                 f"candle_count must be >= 3 for {self.symbol} {self.timeframe}, "
@@ -83,6 +91,40 @@ class MT5ConnectionConfig:
 
 
 @dataclass(frozen=True)
+class MarketScheduleConfig:
+    """Validated calendar used to decide whether market scanning is allowed."""
+
+    timezone: str = "UTC"
+    trading_weekdays: tuple[int, ...] = (0, 1, 2, 3, 4)
+
+    def __post_init__(self) -> None:
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"market_data.schedule.timezone must be a valid IANA timezone, got {self.timezone!r}"
+            ) from exc
+
+        weekdays = tuple(self.trading_weekdays)
+        if not weekdays:
+            raise ValueError("market_data.schedule.trading_weekdays must not be empty")
+        if any(day not in range(7) for day in weekdays):
+            raise ValueError(
+                "market_data.schedule.trading_weekdays values must be integers from 0 (Monday) to 6 (Sunday)"
+            )
+        if len(set(weekdays)) != len(weekdays):
+            raise ValueError("market_data.schedule.trading_weekdays must not contain duplicates")
+
+    def is_open(self, at: datetime | None = None) -> bool:
+        """Return whether the configured market calendar permits scanning."""
+        current = at or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        local_time = current.astimezone(ZoneInfo(self.timezone))
+        return local_time.weekday() in self.trading_weekdays
+
+
+@dataclass(frozen=True)
 class MarketDataConfig:
     """
     Full configuration for the MT5 Market Data Feed and Scanner.
@@ -99,6 +141,7 @@ class MarketDataConfig:
     poll_interval_seconds: int
     mt5: MT5ConnectionConfig
     instruments: tuple[WatchedInstrument, ...]
+    schedule: MarketScheduleConfig = MarketScheduleConfig()
 
     def __post_init__(self) -> None:
         if self.poll_interval_seconds < 1:
@@ -118,7 +161,7 @@ def load_market_data_config(config_path: str) -> MarketDataConfig:
     Load and validate MarketDataConfig from a YAML file.
 
     Fail-closed: raises ValueError for any invalid configuration.
-    MT5 password can be overridden via ATLAX_MT5_PASSWORD env var.
+    MT5 password is sourced from ATLAX_MT5_PASSWORD only.
 
     Authority: docs/13_CONFIGURATION.md
 
@@ -141,9 +184,7 @@ def load_market_data_config(config_path: str) -> MarketDataConfig:
         )
 
     mt5_raw = md_raw.get("mt5", {})
-    password = os.environ.get(
-        "ATLAX_MT5_PASSWORD", str(mt5_raw.get("password", ""))
-    )
+    password = os.environ.get("ATLAX_MT5_PASSWORD", "").strip()
 
     try:
         mt5_conn = MT5ConnectionConfig(
@@ -168,11 +209,22 @@ def load_market_data_config(config_path: str) -> MarketDataConfig:
                 pip_size=float(inst.get("pip_size", 0.0001)),
             ))
 
+        schedule_raw = md_raw.get("schedule", {})
+        if not isinstance(schedule_raw, dict):
+            raise ValueError("market_data.schedule must be a mapping")
+        schedule = MarketScheduleConfig(
+            timezone=str(schedule_raw.get("timezone", "UTC")).strip(),
+            trading_weekdays=tuple(
+                int(day) for day in schedule_raw.get("trading_weekdays", (0, 1, 2, 3, 4))
+            ),
+        )
+
         config = MarketDataConfig(
             enabled=bool(md_raw.get("enabled", True)),
             poll_interval_seconds=int(md_raw.get("poll_interval_seconds", 60)),
             mt5=mt5_conn,
             instruments=tuple(instruments),
+            schedule=schedule,
         )
     except (KeyError, TypeError, ValueError) as e:
         raise ValueError(

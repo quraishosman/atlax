@@ -114,9 +114,12 @@ Only `APPROVED` rules may be implemented.
 | CRT-PARENT-001 | parent_candle | Parent candle defines CRH and CRL | APPROVED |
 | CRT-PARENT-002 | parent_candle | Parent candle at HTF structural zone = quality signal | APPROVED |
 | CRT-PARENT-003 | parent_candle | 3-candle sequence structure | APPROVED |
+| CRT-PARENT-004 | parent_candle | Minimum parent candle range limit | APPROVED |
+| CRT-PARENT-005 | parent_candle | Parent candle must not be a doji (body limit) | APPROVED |
 | CRT-SWEEP-001 | crt_candle | Bullish sweep: sweep.low < parent.low | APPROVED |
 | CRT-SWEEP-002 | crt_candle | Bearish sweep: sweep.high > parent.high | APPROVED |
 | CRT-SWEEP-003 | crt_candle | Sweep body must close back inside parent range | APPROVED |
+| CRT-SWEEP-004 | crt_candle | Sweep candle retracement limit | APPROVED |
 | CRT-BULL-001 | bullish_crt | Full bullish CRT 3-condition sequence | APPROVED |
 | CRT-BEAR-001 | bearish_crt | Full bearish CRT 3-condition sequence | APPROVED |
 | CRT-SWEEP-VALID-001 | liquidity_sweep | Valid sweep conditions | APPROVED |
@@ -128,6 +131,7 @@ Only `APPROVED` rules may be implemented.
 | CRT-QUALITY-001 | quality_metadata | Quality metadata fields | APPROVED |
 | CRT-MTF-001 | multi_timeframe | Timeframe pairings | APPROVED |
 | CRT-MTF-002 | multi_timeframe | Fractal CRT nesting | APPROVED |
+| CRT-MTF-003 | multi_timeframe | Containment-aware nested alert routing | APPROVED |
 | CRT-SESSION-001 | session_timing | Kill zone session filter | APPROVED |
 | CRT-STRAT-001 | strategy_boundary | Detector output boundary | APPROVED |
 
@@ -299,11 +303,6 @@ implementation_notes: >
 rule_id: CRT-PARENT-004
 status: APPROVED
 approved_by: Project Lead
-approved_date: 2026-07-20
-category: parent_candle
-source_ids: [PROJECT-LEAD-2026-07-20]
-rule_text: >
-  Very Small Parent Candle (Doji or near-zero range): Must be ignored.
   A minimum parent candle range threshold must be configured using an ATR multiple (e.g., min_parent_range_atr_multiple: 0.5).
   If the parent range (High - Low) is less than the ATR-based threshold, it is an invalid parent.
 deterministic_condition: >
@@ -382,6 +381,30 @@ required_inputs:
 implementation_notes: >
   This is the single most critical CRT rule. The close-back condition is what distinguishes
   a CRT manipulation sweep from a genuine breakout. Boundary closes (<= CRH or >= CRL) are valid.
+```
+
+### CRT-SWEEP-004
+
+```yaml
+rule_id: CRT-SWEEP-004
+status: APPROVED
+approved_by: Project Lead
+approved_date: 2026-07-22
+category: crt_candle
+source_ids: [CRT-SOURCE-003]
+rule_text: >
+  The sweep candle must not retrace too deeply into the parent candle's range in the direction opposite to the sweep.
+  For a bullish CRT, the sweep candle's high must not exceed the parent low + (parent range * max_sweep_retracement_pct).
+  For a bearish CRT, the sweep candle's low must not fall below the parent high - (parent range * max_sweep_retracement_pct).
+deterministic_condition: >
+  Bullish: sweep.high <= parent.low + (parent.range * max_sweep_retracement_pct)
+  Bearish: sweep.low >= parent.high - (parent.range * max_sweep_retracement_pct)
+required_inputs:
+  - sweep_candle
+  - parent_candle
+  - max_sweep_retracement_pct
+implementation_notes: >
+  Prevents setups where the sweep candle nearly engulfs the entire parent candle before (or after) sweeping, which indicates exhaustion rather than a clean manipulation.
 ```
 
 ---
@@ -786,7 +809,42 @@ deterministic_condition: >
 implementation_notes: >
   The detector must fire independent events for each timeframe.
   The Architecture layer handles multi-timeframe routing and profile context.
+  Approved routing policy CRT-MTF-003 may suppress notification delivery for
+  selected nested events without deleting the raw detector event.
   See docs/03_ARCHITECTURE.md.
+```
+
+### CRT-MTF-003
+
+```yaml
+rule_id: CRT-MTF-003
+status: APPROVED
+approved_by: Project Lead
+approved_date: 2026-08-14
+category: multi_timeframe
+source_ids: [PROJECT-LEAD-2026-08-14, ADR-012]
+rule_text: >
+  Raw CRT detections remain independent across timeframes, but the alert routing
+  layer may apply an approved containment policy. For the initial relationship,
+  an active M15 CRT controls nested M15 and M5 notification routing. A later M15
+  event contained by the active M15 parent range is suppressed. A contained M5
+  event is allowed only when its bullish_crt or bearish_crt classification
+  matches the active M15 classification. A contained M5 event with the opposite
+  classification is suppressed. Events outside the active controller remain
+  eligible under existing behavior.
+deterministic_condition: >
+  The child parent high and low must be within the controller parent high and
+  low. The child sweep close and optional confirmation close must also be within
+  or equal to the controller parent range. Child wicks may exceed the controller
+  range. The child sweep close must occur at or after controller detection.
+  A controller expires on approved mitigation or invalidation, and the latest
+  valid non-contained M15 event replaces the active controller.
+implementation_notes: >
+  Apply this rule after detector output and before Strategy and Confidence
+  processing. Suppressed events must remain in the routing audit ledger and
+  structured logs. No fixed candle-count expiry is used in V1. The relationship
+  is configuration-driven so future approved timeframe relationships can be
+  added without redesign.
 ```
 
 ---
@@ -975,10 +1033,10 @@ candles:
     low: 98.50
     close: 101.20
   - label: sweep
-    open: 101.10
-    high: 101.80
+    open: 100.40
+    high: 100.60
     low: 97.80
-    close: 100.80
+    close: 100.50
   - label: confirmation
     open: 100.90
     high: 103.00
@@ -1003,9 +1061,9 @@ candles:
     low: 149.20
     close: 150.90
   - label: sweep
-    open: 150.80
+    open: 151.00
     high: 153.50
-    low: 150.10
+    low: 150.90
     close: 151.20
   - label: confirmation
     open: 151.10

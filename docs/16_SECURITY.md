@@ -104,6 +104,49 @@ MCP Security Gateway:
 
 AI remains advisory. MCP access does not grant trading authority.
 
+## ATLAX AI Isolation
+
+The subscriber Telegram AI surface is a lower-privilege consumer of the MCP
+gateway. It may receive only sanitized, aggregate ATLAX signal outcomes and
+approved public market context. It must never receive admin execution data,
+account balances, private PnL, lot sizes, broker credentials, risk controls,
+or subscriber identity.
+
+Subscriber requests must be authenticated by active subscriber access, rate
+limited per chat, logged without question secrets, and routed through the
+subscriber-specific advisory method. The admin AI method remains separate and
+must not be reused for subscriber requests because it can access execution-side
+analytics.
+
+The default abuse controls are:
+
+- 10 provider calls per subscriber per UTC day, persisted in `subscribers.json`.
+- 3 calls per one-minute window.
+- 10 seconds between accepted requests.
+- One active request per subscriber, with stale-request recovery after 120 seconds.
+- Three security or illegal-activity strikes before ATLAX AI is blocked.
+
+An AI block affects only ATLAX AI. It does not deactivate the subscription
+or stop signal delivery. Admins may reset quota counters or block/unblock AI
+from the subscriber operations detail view.
+
+ATLAX AI is allowed to read:
+
+- Aggregate signal counts and win rates with sample sizes.
+- Aggregate Signal Replay coverage and outcome buckets with sample sizes.
+- Sanitized heatmap states for configured symbols.
+- Sanitized high-impact economic-calendar events.
+- Computed pair-correlation results for configured symbols.
+- The reviewed public FAQ at `docs/20_PUBLIC_FAQ.md`.
+
+ATLAX AI is forbidden from:
+
+- Reading account state, broker state, private PnL, exact lot sizes, or risk settings.
+- Calling execution, order-management, configuration-write, or admin tools.
+- Treating AI output as an entry, exit, risk, or execution decision.
+- Revealing internal rulebooks, detector names, source code, credentials, or
+  other implementation details through a subscriber answer.
+
 ---
 
 ## Security Architecture
@@ -207,6 +250,12 @@ Initial proposed MCP tools:
 | `get_session_analysis` | Read-only / compute | Compare performance by session. |
 | `get_market_regime_analysis` | Read-only / compute | Compare performance by documented market regime. |
 | `get_pair_comparison` | Read-only / compute | Compare performance by instrument. |
+| `get_public_signal_performance` | Read-only / compute | Subscriber-safe aggregate signal outcomes. |
+| `get_public_signal_replay_report` | Read-only / compute | Subscriber-safe replay coverage and aggregate outcomes. |
+| `get_prop_firm_rule_profile` | Read-only | Return a complete source-backed Prop-Firm rule profile without credentials. |
+| `get_prop_firm_risk_budget` | Read-only | Return an allow-listed protection-buffer snapshot for approved admin advisory use. |
+| `get_heatmap_snapshot` | Read-only | Sanitized configured heatmap state. |
+| `get_pair_correlation` | Read-only / compute | Correlation for configured pairs only. |
 | `get_learning_model_stats` | Read-only | Return model version and readiness statistics. |
 | `get_anomalies` | Read-only / compute | Return deterministic anomaly summaries. |
 | `get_audit_log` | Read-only | Return MCP access history. |
@@ -515,3 +564,31 @@ AI cannot modify ATLAX.
 AI cannot execute trades.
 
 AI cannot bypass the rulebook, configuration, risk controls, or audit trail.
+
+## Operational Hardening Baseline
+
+The administrator Operations Center is protected by `require_admin` and uses
+the dashboard's HTTP-only authenticated session. It is observational only:
+it cannot pause entries, alter configuration, approve trades, or execute
+orders. Execution-quality event metadata and raw broker payloads are excluded
+from the API response; missing evidence remains `UNKNOWN`.
+
+Dashboard password recovery is local-only through
+`scripts/reset_dashboard_password.py`. It prompts for the replacement password
+without printing or storing it, preserves the existing administrator role and
+all ATLAX operational data, and is not exposed as a public API route.
+
+- Credentials and secret-bearing values are environment-only. Tracked YAML
+  must contain empty secret fields, never live values or recovery backups.
+- Dashboard JWTs carry the `atlax-dashboard` issuer and token type. Mini App
+  sessions use a separate issuer and type and cannot authenticate dashboard
+  routes.
+- Production and staging auth cookies require `Secure`; local development may
+  explicitly use HTTP-only cookies for local HTTP testing.
+- CORS origins are explicit. Wildcard origins, methods, and headers are not
+  accepted for credentialed requests.
+- Public bootstrap signup is an atomic one-time operation. It cannot create a
+  second administrator after initialization.
+- Configuration reads redact secret paths. Configuration writes validate the
+  complete Settings Engine document, create a sanitized backup, write through
+  an atomic replacement, and record an administrative audit event.

@@ -32,6 +32,8 @@ from typing import Any
 
 import yaml
 
+from core.settings.timeframe_policy import RETIRED_TIMEFRAMES
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,6 +82,39 @@ class KillZone:
 
 
 @dataclass(frozen=True)
+class CRTQualityTighteningConfig:
+    """Counterfactual CRT quality policy used during shadow rollout.
+
+    This policy is deliberately separate from the approved detector gates.
+    When ``shadow_mode`` is true, it records which valid candidates would be
+    rejected without changing detection or delivery.
+    """
+
+    enabled: bool = False
+    shadow_mode: bool = True
+    version: str = "1.0"
+    min_parent_range_atr_multiple: float = 0.75
+    min_parent_body_ratio: float = 0.38
+    max_sweep_retracement_pct: float = 0.55
+    min_sweep_depth_atr_multiple: float = 0.22
+
+    def __post_init__(self) -> None:
+        errors: list[str] = []
+        if not self.version.strip():
+            errors.append("quality_tightening.version must not be empty")
+        if self.min_parent_range_atr_multiple <= 0:
+            errors.append("quality_tightening.min_parent_range_atr_multiple must be > 0")
+        if not (0.0 <= self.min_parent_body_ratio <= 1.0):
+            errors.append("quality_tightening.min_parent_body_ratio must be between 0 and 1")
+        if not (0.0 <= self.max_sweep_retracement_pct <= 1.0):
+            errors.append("quality_tightening.max_sweep_retracement_pct must be between 0 and 1")
+        if self.min_sweep_depth_atr_multiple <= 0:
+            errors.append("quality_tightening.min_sweep_depth_atr_multiple must be > 0")
+        if errors:
+            raise ValueError("CRT quality tightening configuration validation failed:\n  " + "\n  ".join(errors))
+
+
+@dataclass(frozen=True)
 class CRTConfig:
     """
     Complete CRT detector configuration schema.
@@ -94,6 +129,11 @@ class CRTConfig:
         min_parent_range_atr_multiple: Minimum parent range as a multiple
             of ATR. CRT-PARENT-004. Example: 0.5 means parent range must
             be at least 0.5x the ATR.
+        min_parent_body_ratio: Minimum ratio of parent body to parent range.
+            CRT-PARENT-005. Example: 0.25 means body must be >= 25% of range.
+        max_sweep_retracement_pct: Maximum percentage the sweep candle can
+            retrace into the parent range before sweeping. CRT-SWEEP-004.
+            Example: 0.55 means max 55% retracement allowed.
         require_confirmation_candle: If True, the 3rd candle (confirmation)
             must close above sweep.high (bull) or below sweep.low (bear).
             If False, detection fires on sweep candle close alone.
@@ -112,10 +152,14 @@ class CRTConfig:
             CRT-DATA-003.
         timeframe_pairings: Mapping of HTF range timeframe to LTF
             entry timeframe. CRT-MTF-001.
+        quality_tightening: Counterfactual noise-reduction policy. It is
+            audit-only while shadow_mode is true.
     """
 
     enabled: bool
     min_parent_range_atr_multiple: float
+    min_parent_body_ratio: float
+    max_sweep_retracement_pct: float
     require_confirmation_candle: bool
     max_gap_tolerance_pips: Decimal
     price_comparison_tolerance: Decimal
@@ -123,6 +167,9 @@ class CRTConfig:
     kill_zones: tuple[KillZone, ...]
     allowed_timeframes: tuple[str, ...]
     timeframe_pairings: dict[str, str]
+    quality_tightening: CRTQualityTighteningConfig = field(
+        default_factory=CRTQualityTighteningConfig
+    )
 
     def __post_init__(self) -> None:
         """
@@ -138,6 +185,18 @@ class CRTConfig:
             errors.append(
                 f"min_parent_range_atr_multiple must be > 0, "
                 f"got {self.min_parent_range_atr_multiple}"
+            )
+
+        if not (0.0 <= self.min_parent_body_ratio <= 1.0):
+            errors.append(
+                f"min_parent_body_ratio must be between 0 and 1, "
+                f"got {self.min_parent_body_ratio}"
+            )
+
+        if not (0.0 <= self.max_sweep_retracement_pct <= 1.0):
+            errors.append(
+                f"max_sweep_retracement_pct must be between 0 and 1, "
+                f"got {self.max_sweep_retracement_pct}"
             )
 
         if self.max_gap_tolerance_pips < Decimal("0"):
@@ -159,6 +218,12 @@ class CRTConfig:
 
         if not self.allowed_timeframes:
             errors.append("allowed_timeframes must not be empty.")
+
+        retired = sorted(set(self.allowed_timeframes).intersection(RETIRED_TIMEFRAMES))
+        if retired:
+            errors.append(
+                "retired timeframes cannot be active: " + ", ".join(retired)
+            )
 
         # Validate timeframe pairings reference allowed timeframes
         all_tf = set(self.allowed_timeframes)
@@ -258,6 +323,7 @@ def load_crt_config(config_path: str | Path) -> CRTConfig:
     # --- Required scalar fields ---
     required_fields = [
         "enabled", "min_parent_range_atr_multiple",
+        "min_parent_body_ratio", "max_sweep_retracement_pct",
         "require_confirmation_candle", "max_gap_tolerance_pips",
         "price_comparison_tolerance_pips", "pip_size",
         "allowed_timeframes", "timeframe_pairings", "kill_zones",
@@ -297,11 +363,37 @@ def load_crt_config(config_path: str | Path) -> CRTConfig:
         str(k): str(v) for k, v in pairings_raw.items()
     }
 
+    # --- Counterfactual quality tightening policy ---
+    quality_raw = crt.get("quality_tightening", {})
+    if not isinstance(quality_raw, dict):
+        raise ValueError("quality_tightening must be a mapping")
+    quality_tightening = CRTQualityTighteningConfig(
+        enabled=bool(quality_raw.get("enabled", False)),
+        shadow_mode=bool(quality_raw.get("shadow_mode", True)),
+        version=str(quality_raw.get("version", "1.0")),
+        min_parent_range_atr_multiple=float(
+            quality_raw.get("min_parent_range_atr_multiple", 0.75)
+        ),
+        min_parent_body_ratio=float(
+            quality_raw.get("min_parent_body_ratio", 0.38)
+        ),
+        max_sweep_retracement_pct=float(
+            quality_raw.get("max_sweep_retracement_pct", 0.55)
+        ),
+        min_sweep_depth_atr_multiple=float(
+            quality_raw.get("min_sweep_depth_atr_multiple", 0.22)
+        ),
+    )
+
     # --- Build and validate ---
     return CRTConfig(
         enabled=bool(crt["enabled"]),
         min_parent_range_atr_multiple=float(
             crt["min_parent_range_atr_multiple"]
+        ),
+        min_parent_body_ratio=float(crt["min_parent_body_ratio"]),
+        max_sweep_retracement_pct=float(
+            crt["max_sweep_retracement_pct"]
         ),
         require_confirmation_candle=bool(
             crt["require_confirmation_candle"]
@@ -317,4 +409,5 @@ def load_crt_config(config_path: str | Path) -> CRTConfig:
         kill_zones=tuple(kill_zones),
         allowed_timeframes=tuple(str(tf) for tf in crt["allowed_timeframes"]),
         timeframe_pairings=timeframe_pairings,
+        quality_tightening=quality_tightening,
     )

@@ -84,6 +84,32 @@ def parent_range_meets_minimum(
     return parent.range >= threshold
 
 
+def parent_has_strong_body(
+    parent: Candle,
+    min_body_ratio: float,
+) -> bool:
+    """
+    Rule: CRT-PARENT-005
+    Status: APPROVED
+
+    The parent candle must not be a doji. It must have a strong body
+    relative to its total range.
+
+    Args:
+        parent: The parent candle.
+        min_body_ratio: Configured minimum body ratio (e.g., 0.25).
+
+    Returns:
+        True if parent.body_size >= parent.range * min_body_ratio.
+    """
+    if parent.range == Decimal("0"):
+        return False
+    
+    body_size = abs(parent.close - parent.open)
+    threshold = parent.range * Decimal(str(min_body_ratio))
+    return body_size >= threshold
+
+
 def is_both_sides_sweep(parent: Candle, sweep: Candle) -> bool:
     """
     Rule: CRT-INVALID-004
@@ -151,6 +177,45 @@ def has_strict_bearish_sweep(parent: Candle, sweep: Candle) -> bool:
         True if the sweep strictly breached above CRH.
     """
     return sweep.high > parent.high
+
+
+def sweep_retracement_within_limit(
+    parent: Candle,
+    sweep: Candle,
+    max_retracement_pct: float,
+    direction: str,
+) -> bool:
+    """
+    Rule: CRT-SWEEP-004
+    Status: APPROVED
+
+    The sweep candle must not retrace too deeply into the parent candle's
+    range in the direction opposite to the sweep.
+
+    Args:
+        parent: The parent candle.
+        sweep: The sweep candle.
+        max_retracement_pct: Configured max allowed percentage (e.g. 0.55).
+        direction: "bullish" or "bearish".
+
+    Returns:
+        True if the retracement is within the limit.
+    """
+    if parent.range == Decimal("0"):
+        return False
+        
+    allowed_retracement = parent.range * Decimal(str(max_retracement_pct))
+    
+    if direction == "bullish":
+        # Bullish sweeps down, so retracement is how far up (high) it goes
+        max_allowed_high = parent.low + allowed_retracement
+        return sweep.high <= max_allowed_high
+    elif direction == "bearish":
+        # Bearish sweeps up, so retracement is how far down (low) it goes
+        min_allowed_low = parent.high - allowed_retracement
+        return sweep.low >= min_allowed_low
+    else:
+        raise ValueError(f"direction must be 'bullish' or 'bearish', got {direction!r}")
 
 
 def sweep_open_inside_range(

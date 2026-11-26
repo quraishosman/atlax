@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.models.detector_output import DetectorOutput
+from core.detectors.crt.quality_tightening import CRTQualityTighteningResult
 
 
 # Module-level logger for detection events.
@@ -116,3 +117,35 @@ class DetectionEventLogger:
         }
 
         logger.error(json.dumps(log_entry, default=str))
+
+    @staticmethod
+    def log_quality_tightening(
+        result: CRTQualityTighteningResult,
+        output: DetectorOutput,
+    ) -> None:
+        """Log the counterfactual CRT quality policy evaluation."""
+        if not result.enabled or result.status == "NOT_APPLICABLE":
+            return
+
+        # Quality tightening is intentionally evaluated once and routed at the
+        # subscriber boundary. It is never a global detector gate.
+        mode = "shadow" if result.shadow_mode else "subscriber_only"
+        log_entry: dict[str, Any] = {
+            "event": "crt_quality_tightening_evaluated",
+            "logged_at": datetime.now(timezone.utc).isoformat(),
+            "symbol": output.symbol,
+            "timeframe": output.timeframe,
+            "status": result.status,
+            "mode": mode,
+            "version": result.version,
+            "direction": result.direction,
+            "current_detected": output.detected,
+            "current_classification": output.classification,
+            "would_suppress": result.would_suppress,
+            "reason_codes": list(result.reasons),
+            "parent_atr_ratio": result.parent_atr_ratio,
+            "parent_body_ratio": result.parent_body_ratio,
+            "sweep_depth_atr_ratio": result.sweep_depth_atr_ratio,
+            "sweep_retracement_pct": result.sweep_retracement_pct,
+        }
+        logger.info(json.dumps(log_entry, default=str))

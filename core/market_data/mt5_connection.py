@@ -85,6 +85,20 @@ class MT5Connection:
                 attempt, cfg.max_retries,
             )
 
+            # Prefer the terminal session that the operator has already
+            # authenticated. Passing a stale password to initialize() can
+            # force a valid terminal session into an authorization failure.
+            if self._attach_to_terminal_session(mt5, cfg):
+                return
+
+            # An empty password means terminal-session mode only. Do not
+            # turn a failed session attach into an implicit login attempt.
+            if not cfg.password:
+                last_error = self._last_error_text(mt5)
+                if attempt < cfg.max_retries:
+                    time.sleep(2.0 * attempt)
+                continue
+
             # Build init kwargs — only pass non-empty values
             init_kwargs: dict = {"timeout": cfg.timeout_ms}
             if cfg.account > 0:
@@ -132,6 +146,61 @@ class MT5Connection:
             f"MT5 connection failed after {cfg.max_retries} attempts. "
             f"Last error: {last_error}"
         )
+
+    @staticmethod
+    def _last_error_text(mt5: object) -> str:
+        error = mt5.last_error()
+        return f"MT5 init failed: code={error[0]}, msg={error[1]}"
+
+    @staticmethod
+    def _session_matches_config(account_info: object, cfg: MT5ConnectionConfig) -> bool:
+        if account_info is None:
+            return False
+        if cfg.account > 0 and getattr(account_info, "login", None) != cfg.account:
+            return False
+        if cfg.server and getattr(account_info, "server", None) != cfg.server:
+            return False
+        return True
+
+    def _attach_to_terminal_session(self, mt5: object, cfg: MT5ConnectionConfig) -> bool:
+        """Attach without credentials when a matching MT5 session is active."""
+        success = mt5.initialize(timeout=cfg.timeout_ms)
+        if not success:
+            logger.debug(
+                '{"event":"mt5_session_attach_failed","error":"%s"}',
+                self._last_error_text(mt5),
+            )
+            return False
+
+        terminal_info = mt5.terminal_info()
+        account_info = mt5.account_info()
+        if terminal_info is None or account_info is None:
+            mt5.shutdown()
+            return False
+
+        if not self._session_matches_config(account_info, cfg):
+            logger.warning(
+                '{"event":"mt5_session_identity_mismatch","configured_account":%d,'
+                '"configured_server":"%s","connected_account":%s,'
+                '"connected_server":"%s"}',
+                cfg.account,
+                cfg.server,
+                getattr(account_info, "login", None),
+                getattr(account_info, "server", None),
+            )
+            mt5.shutdown()
+            return False
+
+        self._connected = True
+        logger.info(
+            '{"event":"mt5_connected","auth_mode":"terminal_session",'
+            '"account":%d,"server":"%s","terminal":"%s","build":%d}',
+            account_info.login,
+            account_info.server,
+            terminal_info.name,
+            terminal_info.build,
+        )
+        return True
 
     def shutdown(self) -> None:
         """

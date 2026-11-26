@@ -43,6 +43,10 @@ from typing import Optional
 from core.detectors.base import BaseDetector
 from core.detectors.crt import rules
 from core.detectors.crt import metadata as meta
+from core.detectors.crt.quality_tightening import (
+    CRTQualityTighteningResult,
+    evaluate_quality_tightening,
+)
 from core.logging.detection_logger import DetectionEventLogger
 from core.models.candle import Candle, CandleSequence
 from core.models.detector_output import CRTMetadata, DetectorOutput
@@ -81,8 +85,9 @@ class CRTDetector(BaseDetector):
     def detect(
         self,
         sequence: CandleSequence,
-        *,
         atr: Optional[Decimal] = None,
+        pip_size: Optional[Decimal] = None,
+        *,
         parent_at_htf_zone: Optional[bool] = None,
         htf_trend_alignment: Optional[bool] = None,
         fvg_present_after_sweep: Optional[bool] = None,
@@ -98,6 +103,7 @@ class CRTDetector(BaseDetector):
             atr: Current Average True Range for the instrument.
                  Used by CRT-PARENT-004 for minimum range threshold.
                  If None, the ATR-based check is skipped with a warning.
+            pip_size: The minimum price increment for the instrument.
             parent_at_htf_zone: Optional external input — whether the
                 parent candle sits at a significant HTF structural level.
                 CRT-PARENT-002, CRT-QUALITY-001.
@@ -113,14 +119,21 @@ class CRTDetector(BaseDetector):
             DetectorOutput with classification, reason, and metadata.
         """
         try:
-            return self._evaluate(
+            output = self._evaluate(
                 sequence,
                 atr=atr,
+                pip_size=pip_size,
                 parent_at_htf_zone=parent_at_htf_zone,
                 htf_trend_alignment=htf_trend_alignment,
                 fvg_present_after_sweep=fvg_present_after_sweep,
                 msb_on_ltf=msb_on_ltf,
             )
+            quality_result = self._quality_tightening_for_sequence(
+                sequence, atr
+            )
+            if quality_result is not None:
+                self._logger.log_quality_tightening(quality_result, output)
+            return output
         except Exception as exc:
             self._logger.log_error(
                 self._DETECTOR_NAME,
@@ -138,11 +151,12 @@ class CRTDetector(BaseDetector):
         self,
         sequence: CandleSequence,
         *,
-        atr: Optional[Decimal],
-        parent_at_htf_zone: Optional[bool],
-        htf_trend_alignment: Optional[bool],
-        fvg_present_after_sweep: Optional[bool],
-        msb_on_ltf: Optional[bool],
+        atr: Optional[Decimal] = None,
+        pip_size: Optional[Decimal] = None,
+        parent_at_htf_zone: Optional[bool] = None,
+        htf_trend_alignment: Optional[bool] = None,
+        fvg_present_after_sweep: Optional[bool] = None,
+        msb_on_ltf: Optional[bool] = None,
     ) -> DetectorOutput:
         """Core detection logic. Separated for clean error handling."""
 
@@ -213,6 +227,24 @@ class CRTDetector(BaseDetector):
                 )
                 self._logger.log_detection(output)
                 return output
+                return output
+
+        # ---------------------------------------------------------------
+        # Step 2b: Parent Body Strength Check (CRT-PARENT-005)
+        # ---------------------------------------------------------------
+        if not rules.parent_has_strong_body(parent, self._config.min_parent_body_ratio):
+            output = self._not_detected(
+                sequence,
+                sweep,
+                confirmation,
+                reason=(
+                    f"Parent body is too small (ratio < {self._config.min_parent_body_ratio}). "
+                    f"Parent is considered a doji. CRT-PARENT-005."
+                ),
+                invalidation_reason="Parent candle is a doji.",
+            )
+            self._logger.log_detection(output)
+            return output
 
         # ---------------------------------------------------------------
         # Step 3: Both-sides sweep check (CRT-INVALID-004)
@@ -239,6 +271,7 @@ class CRTDetector(BaseDetector):
             return self._evaluate_bullish(
                 sequence, parent, sweep, confirmation,
                 atr=atr,
+                pip_size=pip_size,
                 parent_at_htf_zone=parent_at_htf_zone,
                 htf_trend_alignment=htf_trend_alignment,
                 fvg_present_after_sweep=fvg_present_after_sweep,
@@ -252,6 +285,7 @@ class CRTDetector(BaseDetector):
             return self._evaluate_bearish(
                 sequence, parent, sweep, confirmation,
                 atr=atr,
+                pip_size=pip_size,
                 parent_at_htf_zone=parent_at_htf_zone,
                 htf_trend_alignment=htf_trend_alignment,
                 fvg_present_after_sweep=fvg_present_after_sweep,
@@ -283,6 +317,7 @@ class CRTDetector(BaseDetector):
         confirmation: Optional[Candle],
         *,
         atr: Optional[Decimal],
+        pip_size: Optional[Decimal] = None,
         parent_at_htf_zone: Optional[bool],
         htf_trend_alignment: Optional[bool],
         fvg_present_after_sweep: Optional[bool],
@@ -305,6 +340,23 @@ class CRTDetector(BaseDetector):
                     f"CRT-SWEEP-INVALID-003."
                 ),
                 invalidation_reason="Sweep candle opened beyond range with gap.",
+            )
+            self._logger.log_detection(output)
+            return output
+
+        # Step 4a2: Retracement check (CRT-SWEEP-004)
+        if not rules.sweep_retracement_within_limit(
+            parent, sweep,
+            self._config.max_sweep_retracement_pct,
+            direction="bullish",
+        ):
+            output = self._not_detected(
+                sequence, sweep, confirmation,
+                reason=(
+                    f"Sweep candle retraced beyond {self._config.max_sweep_retracement_pct * 100}% limit. "
+                    f"CRT-SWEEP-004."
+                ),
+                invalidation_reason="Sweep candle retraced too deeply into parent range.",
             )
             self._logger.log_detection(output)
             return output
@@ -350,6 +402,7 @@ class CRTDetector(BaseDetector):
         return self._build_detected_output(
             sequence, parent, sweep, confirmation,
             direction="bullish",
+            pip_size=pip_size,
             parent_at_htf_zone=parent_at_htf_zone,
             htf_trend_alignment=htf_trend_alignment,
             fvg_present_after_sweep=fvg_present_after_sweep,
@@ -364,6 +417,7 @@ class CRTDetector(BaseDetector):
         confirmation: Optional[Candle],
         *,
         atr: Optional[Decimal],
+        pip_size: Optional[Decimal] = None,
         parent_at_htf_zone: Optional[bool],
         htf_trend_alignment: Optional[bool],
         fvg_present_after_sweep: Optional[bool],
@@ -386,6 +440,23 @@ class CRTDetector(BaseDetector):
                     f"CRT-SWEEP-INVALID-003."
                 ),
                 invalidation_reason="Sweep candle opened beyond range with gap.",
+            )
+            self._logger.log_detection(output)
+            return output
+
+        # Step 5a2: Retracement check (CRT-SWEEP-004)
+        if not rules.sweep_retracement_within_limit(
+            parent, sweep,
+            self._config.max_sweep_retracement_pct,
+            direction="bearish",
+        ):
+            output = self._not_detected(
+                sequence, sweep, confirmation,
+                reason=(
+                    f"Sweep candle retraced beyond {self._config.max_sweep_retracement_pct * 100}% limit. "
+                    f"CRT-SWEEP-004."
+                ),
+                invalidation_reason="Sweep candle retraced too deeply into parent range.",
             )
             self._logger.log_detection(output)
             return output
@@ -431,6 +502,7 @@ class CRTDetector(BaseDetector):
         return self._build_detected_output(
             sequence, parent, sweep, confirmation,
             direction="bearish",
+            pip_size=pip_size,
             parent_at_htf_zone=parent_at_htf_zone,
             htf_trend_alignment=htf_trend_alignment,
             fvg_present_after_sweep=fvg_present_after_sweep,
@@ -441,6 +513,48 @@ class CRTDetector(BaseDetector):
     # Output builders
     # ------------------------------------------------------------------
 
+    def _quality_tightening_for_sequence(
+        self,
+        sequence: CandleSequence,
+        atr: Optional[Decimal],
+    ) -> Optional[CRTQualityTighteningResult]:
+        """Build a shadow evaluation for a complete directional sequence."""
+        required_candles = 2 if not self._config.require_confirmation_candle else 3
+        if len(sequence) < required_candles:
+            return None
+        parent = sequence.candles[-required_candles]
+        sweep = sequence.candles[-required_candles + 1]
+        if not rules.all_candles_closed(
+            parent,
+            sweep,
+            sequence.candles[-1] if self._config.require_confirmation_candle else None,
+        ):
+            return None
+        return self._quality_tightening_for_candles(parent, sweep, atr)
+
+    def _quality_tightening_for_candles(
+        self,
+        parent: Candle,
+        sweep: Candle,
+        atr: Optional[Decimal],
+    ) -> Optional[CRTQualityTighteningResult]:
+        """Evaluate only one-sided sweep candidates."""
+        if rules.is_both_sides_sweep(parent, sweep):
+            return None
+        if rules.has_strict_bullish_sweep(parent, sweep):
+            direction = "bullish"
+        elif rules.has_strict_bearish_sweep(parent, sweep):
+            direction = "bearish"
+        else:
+            return None
+        return evaluate_quality_tightening(
+            parent,
+            sweep,
+            atr,
+            direction,
+            self._config.quality_tightening,
+        )
+
     def _build_detected_output(
         self,
         sequence: CandleSequence,
@@ -449,6 +563,7 @@ class CRTDetector(BaseDetector):
         confirmation: Optional[Candle],
         *,
         direction: str,
+        pip_size: Optional[Decimal] = None,
         parent_at_htf_zone: Optional[bool],
         htf_trend_alignment: Optional[bool],
         fvg_present_after_sweep: Optional[bool],
@@ -459,8 +574,9 @@ class CRTDetector(BaseDetector):
         classification = f"{direction}_crt"
 
         # Compute quality metadata (CRT-QUALITY-001)
+        effective_pip_size = Decimal(str(pip_size)) if pip_size is not None else self._config.pip_size
         sweep_distance = meta.compute_sweep_distance_pips(
-            parent, sweep, self._config.pip_size, direction
+            parent, sweep, effective_pip_size, direction
         )
         close_ratio = meta.compute_close_location_ratio(parent, sweep)
         wick_ratio = meta.compute_sweep_wick_ratio(parent, sweep, direction)

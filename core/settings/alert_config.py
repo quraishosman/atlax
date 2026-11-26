@@ -30,6 +30,8 @@ class TelegramConfig:
         parse_mode: Telegram message parse mode ("HTML" or "Markdown").
         timeout_seconds: HTTP request timeout for Telegram API calls.
         retry_attempts: How many times to retry a failed send before giving up.
+        mini_app_url: Public HTTPS URL for the Telegram Mini App. Empty disables
+            Mini App launch buttons and the persistent chat menu button.
     """
     enabled: bool
     bot_token: str
@@ -37,6 +39,7 @@ class TelegramConfig:
     parse_mode: str
     timeout_seconds: float
     retry_attempts: int
+    mini_app_url: str = ""
 
     def __post_init__(self) -> None:
         if self.enabled:
@@ -54,6 +57,19 @@ class TelegramConfig:
             raise ValueError(
                 f"parse_mode must be 'HTML' or 'Markdown', got {self.parse_mode!r}"
             )
+        if self.mini_app_url and not self.mini_app_url.startswith("https://"):
+            raise ValueError("mini_app_url must use HTTPS when configured")
+
+
+@dataclass(frozen=True)
+class DiscordConfig:
+    """Discord webhook delivery configuration."""
+    enabled: bool
+    webhook_url: str
+
+    def __post_init__(self) -> None:
+        if self.enabled and (not self.webhook_url or self.webhook_url.strip() == ""):
+            raise ValueError("Discord is enabled but webhook_url is empty.")
 
 
 @dataclass(frozen=True)
@@ -81,6 +97,7 @@ class AlertConfig:
     enabled: bool
     log_channel_enabled: bool
     telegram: TelegramConfig
+    discord: DiscordConfig
     deduplication_window_seconds: int
     suppress_below_threshold: bool
 
@@ -122,11 +139,10 @@ def load_alert_config(config_path: str) -> AlertConfig:
 
     tg_raw = alerts_raw.get("telegram", {})
 
-    # Allow env-var override for secrets (docs/16_SECURITY.md)
-    bot_token = os.environ.get("ATLAX_TELEGRAM_BOT_TOKEN",
-                               str(tg_raw.get("bot_token", "")))
-    chat_id = os.environ.get("ATLAX_TELEGRAM_CHAT_ID",
-                             str(tg_raw.get("chat_id", "")))
+    # Secrets are sourced from environment variables only.
+    bot_token = os.environ.get("ATLAX_TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("ATLAX_TELEGRAM_CHAT_ID", "").strip()
+    mini_app_url = os.environ.get("ATLAX_TELEGRAM_MINI_APP_URL", "").strip().rstrip("/")
 
     try:
         telegram = TelegramConfig(
@@ -136,12 +152,21 @@ def load_alert_config(config_path: str) -> AlertConfig:
             parse_mode=str(tg_raw.get("parse_mode", "HTML")),
             timeout_seconds=float(tg_raw.get("timeout_seconds", 10.0)),
             retry_attempts=int(tg_raw.get("retry_attempts", 2)),
+            mini_app_url=mini_app_url,
+        )
+        
+        discord_raw = alerts_raw.get("discord", {})
+        webhook_url = os.environ.get("ATLAX_DISCORD_WEBHOOK_URL", "").strip()
+        discord_cfg = DiscordConfig(
+            enabled=bool(discord_raw.get("enabled", False)),
+            webhook_url=webhook_url
         )
 
         config = AlertConfig(
             enabled=bool(alerts_raw.get("enabled", True)),
             log_channel_enabled=bool(alerts_raw.get("log_channel_enabled", True)),
             telegram=telegram,
+            discord=discord_cfg,
             deduplication_window_seconds=int(
                 alerts_raw.get("deduplication_window_seconds", 300)
             ),

@@ -65,6 +65,8 @@ Alert Engine:
 
 - Sends alerts only.
 - Never executes trades.
+- Subscriber signal delivery must not depend on MT5 account state, risk
+  approval, or execution readiness. Those checks belong to the execution path.
 
 Execution Engine:
 

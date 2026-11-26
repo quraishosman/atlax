@@ -96,6 +96,7 @@ class CRTStrategy(BaseStrategy):
         detector_output: DetectorOutput,
         profile: ProfileConfig,
         config: StrategyConfig,
+        pip_size: Optional[float] = None,
     ) -> StrategyDecision:
         """
         Evaluate a CRT detector output for a specific trader profile.
@@ -219,6 +220,8 @@ class CRTStrategy(BaseStrategy):
             "htf_trend_alignment": metadata.htf_trend_alignment,
             "fvg_present_after_sweep": metadata.fvg_present_after_sweep,
             "msb_on_ltf": metadata.msb_on_ltf,
+            "sweep_open_time": metadata.sweep_candle.open_time.timestamp(),
+            "pip_size": pip_size,  # passed through to Risk Engine for lot size calc
         }
 
         # ------------------------------------------------------------------

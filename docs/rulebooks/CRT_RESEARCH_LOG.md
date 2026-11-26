@@ -1,9 +1,9 @@
 # CRT Research Log
 
 Version: 0.3  
-Status: Research Archive — Rules Approved  
-Updated: 2026-07-14  
-Approved By: Project Lead, 2026-07-14
+Status: Research Archive — Approved Rulebook Evidence + Unresolved Research
+Updated: 2026-08-15
+Approved By: Project Lead for promoted rulebook entries, 2026-07-14
 
 ---
 
@@ -69,11 +69,14 @@ Searches attempted:
 
 ---
 
-## Key Research Findings (RESEARCH ONLY — Not Approved Rules)
+## Key Research Findings (Research Archive — Not Authority By Themselves)
 
 All findings below are cross-referenced across multiple independent sources (tradingwyckoff.com, writofinance.com, innercircletrader.net, scribd.com, forexalgo-trader.com, arongroups.co, binance.com, grandalgo.com, forexbee.co).
 
-These are consistent community-level descriptions of Romeo's CRT model. They are flagged `PROPOSED` for each relevant section until project lead review and approval.
+These are consistent community-level descriptions of Romeo's CRT model. They
+remain research evidence rather than executable rules. Any claim already
+promoted into `CRT_RULEBOOK.md` is governed by that approved rulebook entry;
+claims not present there remain `PROPOSED` or `UNKNOWN` and must not be coded.
 
 ### Finding 1: CRT Identity and Foundation
 
@@ -257,11 +260,11 @@ CRT quality is reduced by:
 
 ## Required Next Action
 
-1. **Project lead must review** Findings 2–14 above and confirm or reject each against personal knowledge of Romeo's teachings.
-2. Any finding that project lead confirms should be promoted to `PROPOSED` → `APPROVED` in `CRT_RULEBOOK.md`.
-3. The direct Romeo YouTube channel (Romeotpt) must be found and linked as the primary source authority for final rule approval.
-4. Search on YouTube: `"Romeotpt"` or `"Romeo CRT"` or `"Romeo CRT & TS"` to find primary video sources.
-5. Once a direct video link with timestamp is obtained, promote to `CRT_SOURCE_INTAKE.md` with `PENDING_REVIEW` status for project lead sign-off.
+1. Compare new findings against `CRT_RULEBOOK.md`; do not treat this archive as executable authority.
+2. Any new claim that is not already in the rulebook requires deterministic inputs, edge-case behavior, and project-lead approval before promotion.
+3. The direct Romeo YouTube channel (Romeotpt) remains a preferred primary source for future claims, but its absence does not reopen rules already approved in the rulebook.
+4. Search on YouTube: `"Romeotpt"`, `"Romeo CRT"`, or `"Romeo CRT & TS"` when validating a new claim.
+5. A direct video link with timestamp may be added to `CRT_SOURCE_INTAKE.md` as `PENDING_SOURCE` until the project lead approves any resulting rule change.
 
 ---
 

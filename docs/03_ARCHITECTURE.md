@@ -32,12 +32,23 @@ ATLAX must instead support simultaneous profile-aware events:
 EURUSD at the same moment:
 
 M5  CRT detected -> scalper context
-M15 CRT detected -> scalper or day-trader context
-H1  CRT detected -> day-trader or swing context
-H4  CRT detected -> swing or position context
+M15 CRT detected -> day-trader context
+H1  CRT detected -> day-trader context
+H4  CRT detected -> swing-trader context
+D1  CRT detected -> swing-trader context
 ```
 
-The system must preserve each event independently. It must not collapse all timeframes into one undifferentiated alert.
+The system must preserve each raw event independently. It must not collapse all
+timeframes into one undifferentiated event. After detector output, an approved
+containment-aware routing policy may suppress notification delivery for nested
+events while retaining the raw detector event and routing decision in audit
+storage. The current approved policy is CRT-MTF-003.
+
+The optional LTF FVG watch/entry notification path remains isolated from the
+normal alert route. If its Telegram adapter is unavailable or fails, the
+scanner records the dispatch failure and preserves the normal scored alert;
+one optional delivery failure must not abort processing for the instrument or
+timeframe.
 
 ---
 
@@ -49,30 +60,29 @@ Default profile intent:
 
 | Profile | Holding Style | Typical Timeframes | Alert Style |
 | --- | --- | --- | --- |
-| Scalper | Minutes | M1, M5, M15 | Every configured valid CRT event |
-| Day Trader | Hours | M15, M30, H1 | Filtered by configured confluence |
-| Swing Trader | Days or weeks | H1, H4, D1 | Strict confluence and optional HTF bias |
+| Scalper | Minutes | M5 | Every configured valid CRT event |
+| Day Trader | Hours | M15, H1 | Filtered by configured confluence |
+| Swing Trader | Days or weeks | H4, D1 | Strict confluence and optional HTF bias |
 
 These are configuration defaults, not hardcoded strategy rules.
+
+Operational note: M1 is currently disabled for ATLAX scanning and subscriber
+routing because its alert stream is too noisy. The approved CRT rulebook still
+describes M1 as a technically supported timeframe; re-enabling it requires a
+configuration change and explicit operational review.
 
 ---
 
 ## System Flow
 
 ```text
-TradingView
+Local MT5 Market Data
   |
-  |  One configured detector instance per timeframe
+  |  Closed candles for each configured instrument/timeframe
   v
-Webhook Intake
+Detector Layer
   |
-  |  Normalized detection events
-  v
-Market Data / Event Store
-  |
-  v
-Detector Output Registry
-  |
+  |  Structured detector output
   v
 Strategy Engine
   |
@@ -98,9 +108,18 @@ Analytics and Journal
 
 ---
 
-## TradingView Role
+## Current Detector Source
 
-TradingView may run one script per timeframe or use an approved multi-timeframe design.
+The active ATLAX deployment uses the local MT5 market-data feed as the
+detector input. The scanner owns the documented Market Data -> Detector ->
+Strategy -> Confidence -> Alert path. TradingView is not required for current
+operation and is not a production dependency.
+
+## Optional TradingView Role
+
+TradingView may be integrated later as an optional external event source. The
+current webhook intake and shadow consumer remain isolated and must not affect
+the local scanner, alerts, risk, or execution while this source is dormant.
 
 Each event must include:
 
@@ -117,7 +136,7 @@ Detector payloads must not return `BUY` or `SELL`. Directional trade decisions b
 
 If a TradingView alert carries a trade direction in the future, that alert must be classified as a strategy output, not a raw detector output, and the governing rulebook must explicitly allow it.
 
-### TradingView Platform Constraints
+### TradingView Platform Constraints When Re-enabled
 
 Official TradingView references:
 
@@ -179,6 +198,40 @@ If Swing Trader profile is enabled:
 ```
 
 Routing must be driven by configuration. No profile timeframe, threshold, confluence requirement, or risk setting may be hardcoded.
+
+### Subscriber Delivery Preferences
+
+Telegram subscriber delivery applies the saved preferences at the final delivery
+boundary. A subscriber receives an event only when all of the following match:
+
+- The subscription is active.
+- The event timeframe belongs to the subscriber's selected trading style.
+- The symbol is included by the subscriber's optional pair filter.
+- The event confidence is at or above the saved minimum confidence. If either
+  value is missing or invalid, delivery is suppressed rather than widened.
+
+An unset subscriber minimum means the saved `Profile Default` choice. In that
+case the configured minimum for the event's producing profile is used. An
+explicit, valid subscriber minimum may be lower than the profile default; in
+that case the Telegram subscriber route may evaluate the event below the
+profile floor while keeping the admin channel quiet. An explicitly malformed
+override remains fail-closed.
+
+The Telegram delivery adapter accepts the scored confidence value from the
+Alert Engine and applies these checks before sending. Changes to this delivery
+contract require a focused test because a contract mismatch can suppress all
+subscriber alerts while the admin channel still appears healthy.
+
+The notification mode controls follow-up outcome messages: `all` receives TP1,
+TP2, and stop-loss updates; `minimal` receives stop-loss updates but not TP1 or
+TP2; `signals_only` receives no outcome updates. Initial signal, FVG watch, and
+FVG entry events are signal events and use the style, symbol, and confidence
+filters above.
+
+When the configured admin chat is also an active subscriber, its personal
+Telegram signal feed follows the same filters. This does not restrict scanner,
+approval, risk, or execution behavior. An unregistered admin chat continues to
+receive the operational feed.
 
 ---
 
@@ -246,6 +299,19 @@ Approval must preserve:
 ## MT5 Execution Handoff
 
 MT5 receives approved execution requests only.
+
+When `execution.require_alert_eligibility` is `true`, the scanner must also
+observe a successful Telegram delivery decision before it creates an MT5 entry
+request. A suppressed or failed alert is not an execution authorization. This
+guard keeps signal routing and automatic entry decisions consistent without
+making a successful log or Discord write count as Telegram delivery.
+
+When `approval.require_manual` is `false`, the Approval Engine marks a
+risk-approved request as approved automatically. This is an explicitly
+authorized deployment mode, not a bypass: the request must still pass the
+Risk Engine, MT5 `order_check`, broker validation, and the Execution Engine's
+idempotent lifecycle before `order_send` is called. The default remains manual
+approval unless a project-lead decision records controlled live execution.
 
 Execution requests must include:
 

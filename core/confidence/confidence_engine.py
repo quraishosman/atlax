@@ -197,6 +197,27 @@ class ConfidenceEngine:
         ))
 
         # ----------------------------------------------------------------
+        # Factor 9: Volume Profile Confluence (binary)
+        # Authority: docs/40_VOLUME_PROFILE_CONFLUENCE_PLAN.md (Phase 6)
+        #            docs/decisions/ADR-017.md
+        # Disabled by default (weight=0.0) until shadow results are reviewed
+        # and a numeric weight is explicitly approved.
+        # ----------------------------------------------------------------
+        if cfg.volume_profile_confluence_weight > 0:
+            factor_scores.append(self._score_binary(
+                name="volume_profile_confluence",
+                value=inputs.get("volume_profile_confluence"),
+                weight=cfg.volume_profile_confluence_weight,
+                true_explanation=(
+                    "Parent candle intersects a Volume Profile level "
+                    "(POC, VAH, or VAL)."
+                ),
+                false_explanation=(
+                    "Parent candle has no Volume Profile confluence."
+                ),
+            ))
+
+        # ----------------------------------------------------------------
         # Aggregate: rescale for missing factors
         # ----------------------------------------------------------------
         known = [f for f in factor_scores if not f.is_unknown]

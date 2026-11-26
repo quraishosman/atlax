@@ -1,59 +1,27 @@
-# =============================================================================
-# ATLAX Root Configuration
-# =============================================================================
-#
-# Authority: docs/13_CONFIGURATION.md
-#
-# This file defines all configurable parameters for ATLAX.
-# No strategy decision, threshold, or session window may be hardcoded in code.
-#
-# Values shown here are DEFAULTS. They are not CRT rules and must not be
-# treated as immutable trading logic. CRT behavior is defined only in
-# docs/rulebooks/CRT_RULEBOOK.md.
-#
-# =============================================================================
-
-# ---------------------------------------------------------------------------
-# CRT Detector Configuration
-# ---------------------------------------------------------------------------
-crt:
-  # Master toggle for CRT detection.
+prop_firm_navigator:
   enabled: true
+  coast_threshold_pct: 2.0
+  daily_drawdown_halt_pct: 1.0
+  profit_target_pct: 8.0  # Set to your challenge profit target (e.g. 8.0 for Phase 1, 5.0 for Phase 2)
 
-  # Minimum parent candle range as a multiple of ATR.
-  # Authority: CRT-PARENT-004
-  # Example: 0.5 means parent range must be >= 0.5 * ATR.
-  # Prevents doji/tiny-range candles from triggering false detections.
+crt:
+  enabled: true
   min_parent_range_atr_multiple: 0.5
-
-  # Whether to require a 3rd (confirmation) candle for detection.
-  # Authority: CRT-BULL-001, CRT-BEAR-001
-  # true  = 3-candle model (higher reliability, one candle lag)
-  # false = 2-candle model (faster entry, fires on sweep candle close)
-  require_confirmation_candle: true
-
-  # Maximum gap allowed between sweep candle open and parent range boundary.
-  # Authority: CRT-SWEEP-INVALID-003
-  # Gaps larger than this invalidate the sweep. Smaller gaps are flagged
-  # with lower quality metadata but still allowed.
-  # Value is in price units (e.g., 0.0005 = 5 pips for 4-decimal forex).
+  min_parent_body_ratio: 0.25
+  max_sweep_retracement_pct: 0.55
+  quality_tightening:
+    enabled: true
+    shadow_mode: true
+    version: '1.0'
+    min_parent_range_atr_multiple: 0.75
+    min_parent_body_ratio: 0.38
+    max_sweep_retracement_pct: 0.55
+    min_sweep_depth_atr_multiple: 0.22
+  require_confirmation_candle: false
   max_gap_tolerance_pips: 0.0005
-
-  # Small tolerance for price comparisons to handle broker rounding quirks.
-  # Applied to all strict inequality checks in rules.py.
-  # Value is in price units.
   price_comparison_tolerance_pips: 0.00001
-
-  # Pip size for the default instrument class.
-  # Used to calculate sweep_distance_pips in quality metadata.
-  # Override per-symbol if needed in future configuration.
   pip_size: 0.0001
-
-  # Allowed timeframes for CRT detection.
-  # Authority: CRT-DATA-003
-  # The same detection logic applies across all timeframes.
   allowed_timeframes:
-    - M1
     - M5
     - M15
     - M30
@@ -62,194 +30,521 @@ crt:
     - D1
     - W1
     - MN
-
-  # HTF range -> LTF entry timeframe pairings.
-  # Authority: CRT-MTF-001
-  # These are configurable defaults, not fixed values.
   timeframe_pairings:
     MN: D1
     W1: H4
     D1: H1
     H4: M15
     H1: M5
-    M15: M1
-
-  # Kill zone session windows (UTC).
-  # Authority: CRT-SESSION-001
-  # CRT setups during these windows have the highest probability.
   kill_zones:
     - name: London Open
-      utc_start: "02:00"
-      utc_end: "05:00"
+      utc_start: '02:00'
+      utc_end: '05:00'
     - name: New York AM
-      utc_start: "12:00"
-      utc_end: "15:00"
-
-# ---------------------------------------------------------------------------
-# Strategy Engine Configuration
-# ---------------------------------------------------------------------------
+      utc_start: '12:00'
+      utc_end: '15:00'
+fvg:
+  enabled: true
+  execution_gate_enabled: false
+  min_gap_pips: 0.5
+  ltf_candle_count: 30
+  ltf_atr_period: 14
+  watch_max_age_seconds: 14400
+nested_crt_routing:
+  enabled: true
+  shadow_mode: false
+  relationships:
+    - controller_timeframe: M15
+      child_timeframes:
+        - M5
+      same_timeframe_policy: suppress_inside
+      child_policy: allow_aligned_only
+      containment_mode: parent_range_and_child_closes
 strategy:
   enabled: true
   strategy_name: CRTStrategy
-
-  # Block candidates during high-impact news (future feature — off for v1)
   news_filter_enabled: false
-
-  # Block candidates when spread exceeds max_spread_pips
-  spread_filter_enabled: false
-  max_spread_pips: 3.0
-
-  # Trader profiles — all three active per user decision
+  spread_filter_enabled: true
+  max_spread_pips: 3
   profiles:
     - name: scalper
       enabled: true
-      allowed_timeframes: [M1, M5, M15]
-      # Scalpers: speed matters, no HTF bias required
-      require_session_alignment: true
-      require_htf_trend_alignment: false
-      min_confidence_threshold: 55.0
-
-    - name: day_trader
-      enabled: true
-      allowed_timeframes: [M15, M30, H1]
-      # Day traders: session timing + moderate confluence
-      require_session_alignment: true
-      require_htf_trend_alignment: false
-      min_confidence_threshold: 65.0
-
-    - name: swing_trader
-      enabled: true
-      allowed_timeframes: [H1, H4, D1]
-      # Swing traders: strictest filters, HTF bias required
+      allowed_timeframes:
+        - M5
       require_session_alignment: false
       require_htf_trend_alignment: false
-      min_confidence_threshold: 70.0
-
-# ---------------------------------------------------------------------------
-# Confidence Engine Configuration
-# ---------------------------------------------------------------------------
+      min_confidence_threshold: 55
+    - name: day_trader
+      enabled: true
+      allowed_timeframes:
+        - M15
+        - H1
+      require_session_alignment: true
+      require_htf_trend_alignment: false
+      min_confidence_threshold: 55
+    - name: swing_trader
+      enabled: true
+      allowed_timeframes:
+        - H4
+        - D1
+      require_session_alignment: false
+      require_htf_trend_alignment: false
+      min_confidence_threshold: 55
 confidence:
-  # Scoring model version — increment when weights change for audit traceability
-  version: "1.0.0"
-
-  # Scoring weights — MUST sum to exactly 100.0
-  # Authority: docs/09_CONFIDENCE_ENGINE.md
+  version: 1.0.0
   weights:
-    session_alignment: 15.0    # Kill-zone timing (London/NY)
-    sweep_distance:    15.0    # How far price raided liquidity (pips)
-    close_location:    20.0    # How deep price recovered into the range
-    sweep_wick_ratio:  10.0    # Aggressiveness of the liquidity grab
-    htf_zone:          15.0    # Parent at HTF structural level
-    htf_trend:         10.0    # Direction aligns with HTF trend
-    fvg:                5.0    # Fair Value Gap formed after sweep
-    msb_ltf:           10.0    # LTF market structure break confirmation
-    # Total:           100.0
-
-  # Scoring range parameters for continuous factors
+    session_alignment: 15
+    sweep_distance: 15
+    close_location: 20
+    sweep_wick_ratio: 10
+    htf_zone: 15
+    htf_trend: 10
+    fvg: 5
+    msb_ltf: 10
+    volume_profile_confluence: 0
   scoring_params:
-    # sweep_distance: ideal pip range for a CRT liquidity grab
-    sweep_distance_ideal_min_pips: 3.0
-    sweep_distance_ideal_max_pips: 30.0
-
-    # close_location: ideal ratio for bullish (high = strong recovery)
-    close_location_bull_ideal_min: 0.40
-
-    # close_location: ideal ratio for bearish (low = strong recovery)
-    close_location_bear_ideal_max: 0.60
-
-    # sweep_wick_ratio: ideal wick-to-range ratio (not too weak, not overextended)
+    sweep_distance_ideal_min_pips: 3
+    sweep_distance_ideal_max_pips: 30
+    close_location_bull_ideal_min: 0.4
+    close_location_bear_ideal_max: 0.6
     sweep_wick_ideal_min: 0.05
-    sweep_wick_ideal_max: 0.50
-
-# ---------------------------------------------------------------------------
-# Alert Engine Configuration
-# ---------------------------------------------------------------------------
+    sweep_wick_ideal_max: 0.5
+  htf_momentum:
+    enabled: true
+    shadow_mode: false
+    controller_timeframe: H1
+    child_timeframes:
+      - M5
+      - M15
+    lookback_candles: 6
+    strong_run_candles: 2
+    aligned_adjustment: 5
+    opposing_adjustment: -10
+    sideways_adjustment: 0
+    unknown_adjustment: 0
+    run_bonus_per_extra_candle: 3
+    max_run_bonus: 6
+volume_profile:
+  enabled: true
+  shadow_mode: false
+  version: 0.1.0
+  volume_source: MT5_TICK_VOLUME
+  real_volume_fallback: true
+  profile_periods:
+    - PREVIOUS_DAY
+    - PREVIOUS_WEEK
+  source_timeframe_by_instrument_class:
+    forex_non_jpy: M15
+    forex_jpy: M15
+    gold: M5
+  source_timeframe_symbol_overrides: {}
+  value_area_percent: 0.7
+  bin_size_ticks_by_instrument_class:
+    forex_non_jpy: 10
+    forex_jpy: 10
+    gold: 20
+  bin_size_ticks_symbol_overrides: {}
+  allocation_method: RANGE_UNIFORM
+  minimum_source_bars: 50
+  minimum_valid_volume_bars: 40
+  use_current_period: false
+  confidence_factor_enabled: false
+  confidence_factor_weight: 0
+  require_for_premium_confluence: false
+atr_quality_overlay:
+  enabled: true
+  shadow_mode: false
+  version: 0.1.0
+  method: SIMPLE_TR_MEAN
+  atr_period: 14
+  minimum_premium_grade: A
+  missing_data_policy: UNKNOWN
+  parent_a_plus_min_atr_ratio: 0.8
+  parent_a_min_atr_ratio: 0.6
+  parent_b_min_atr_ratio: 0.45
+  sweep_a_plus_min_atr_ratio: 0.25
+  sweep_a_min_atr_ratio: 0.2
+  sweep_b_min_atr_ratio: 0.15
+  advanced_regime_filter_enabled: false
+  max_parent_atr_ratio: null
+  max_sweep_atr_ratio: null
+  volatility_regime_min_ratio: null
+  volatility_regime_max_ratio: null
+  default_plan: standard
+  plans:
+    standard:
+      atr_quality_filter: false
+      minimum_grade: null
+    premium:
+      atr_quality_filter: true
+      minimum_grade: A
+key_level_evaluator:
+  enabled: true
+  shadow_mode: false
+  version: 0.1.0
+  tolerance_atr_multiplier: 0.1
+  minimum_tolerance_pips: 5
+  swing_left_bars: 2
+  swing_right_bars: 2
+  maximum_swing_levels: 5
+  source_timeframes:
+    - D1
+    - W1
+    - H4
 alerts:
   enabled: true
-
-  # Structured JSON log channel — always on, permanent audit trail
   log_channel_enabled: true
-
-  # Deduplication: minimum seconds between alerts for the same
-  # (symbol, timeframe, profile, direction) combination.
-  # Authority: docs/03_ARCHITECTURE.md (Alert Deduplication)
-  # Set to 0 to disable deduplication entirely.
-  deduplication_window_seconds: 300
-
-  # Suppress alerts whose confidence score is below the profile's
-  # min_confidence_threshold setting. Suppressed alerts are still logged.
+  deduplication_window_seconds: 60
   suppress_below_threshold: true
-
-  # Telegram delivery channel
   telegram:
-    enabled: false          # Set to true and add credentials to activate
-    # bot_token and chat_id should be provided via environment variables:
-    #   ATLAX_TELEGRAM_BOT_TOKEN
-    #   ATLAX_TELEGRAM_CHAT_ID
-    # OR set directly here for local development only (docs/16_SECURITY.md)
-    bot_token: ""
-    chat_id: ""
+    enabled: true
+    bot_token: '8536141698:AAFuh5eseWRLRfV7DdhcVmqHm6pFR01eQxM'
+    chat_id: '8872528181'
+    mini_app_url: ''
     parse_mode: HTML
-    timeout_seconds: 10.0
+    timeout_seconds: 10
     retry_attempts: 2
-
-# ---------------------------------------------------------------------------
-# Market Data Feed Configuration (Phase 9)
-# ---------------------------------------------------------------------------
+  discord:
+    enabled: false
+    webhook_url: ''
 market_data:
   enabled: true
-
-  # Seconds to wait between full scan cycles
-  # 60 = scan every minute (suitable for M1-H4 monitoring)
-  poll_interval_seconds: 60
-
-  # MT5 terminal connection settings
-  # Password should be provided via ATLAX_MT5_PASSWORD env var (docs/16_SECURITY.md)
+  poll_interval_seconds: 5
+  schedule:
+    timezone: UTC
+    trading_weekdays:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
   mt5:
-    account: 0          # 0 = use currently logged-in account
-    server: ""          # "" = use terminal default
-    password: ""        # Use env var ATLAX_MT5_PASSWORD instead
+    account: 10422092
+    server: MavenTrade-Server
+    password: ''
     timeout_ms: 60000
     max_retries: 3
-
-  # Instruments and timeframes to monitor
-  # Add or remove entries to expand or narrow coverage
   instruments:
-    # Scalper instruments (M1/M5/M15)
+    - symbol: EURUSD
+      timeframe: M5
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
     - symbol: EURUSD
       timeframe: M15
       candle_count: 50
       atr_period: 14
       pip_size: 0.0001
-
-    - symbol: GBPUSD
-      timeframe: M15
-      candle_count: 50
-      atr_period: 14
-      pip_size: 0.0001
-
-    # Day trader instruments (M30/H1)
     - symbol: EURUSD
       timeframe: H1
       candle_count: 50
       atr_period: 14
       pip_size: 0.0001
-
+    - symbol: EURUSD
+      timeframe: H4
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: EURUSD
+      timeframe: D1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: GBPUSD
+      timeframe: M5
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: GBPUSD
+      timeframe: M15
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: GBPUSD
+      timeframe: H1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: GBPUSD
+      timeframe: H4
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: GBPUSD
+      timeframe: D1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.0001
+    - symbol: XAUUSD
+      timeframe: M5
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+    - symbol: XAUUSD
+      timeframe: M15
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
     - symbol: XAUUSD
       timeframe: H1
       candle_count: 50
       atr_period: 14
-      pip_size: 0.01   # Gold: 1 pip = 0.01
-
-    # Swing trader instruments (H4/D1)
-    - symbol: EURUSD
+      pip_size: 0.01
+    - symbol: XAUUSD
       timeframe: H4
       candle_count: 50
       atr_period: 14
-      pip_size: 0.0001
-
-    - symbol: GBPUSD
+      pip_size: 0.01
+    - symbol: XAUUSD
+      timeframe: D1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+    - symbol: USDJPY
+      timeframe: M5
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+    - symbol: USDJPY
+      timeframe: M15
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+    - symbol: USDJPY
+      timeframe: H1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+    - symbol: USDJPY
       timeframe: H4
       candle_count: 50
       atr_period: 14
-      pip_size: 0.0001
+      pip_size: 0.01
+    - symbol: USDJPY
+      timeframe: D1
+      candle_count: 50
+      atr_period: 14
+      pip_size: 0.01
+risk:
+  enabled: true
+  max_daily_loss_pct: 3
+  max_weekly_loss_pct: 6
+  pip_value_per_lot: 10
+  contract_size: 100000
+  min_lot: 0.01
+  max_lot: 100
+  lot_step: 0.01
+  adaptive_lot_sizing:
+    enabled: true
+    excluded_symbol_prefixes: [XAU]
+    normal_lot: 1.00
+    caution_daily_loss_pct: 1.00
+    caution_lot: 0.80
+    recovery_daily_loss_pct: 2.00
+    recovery_lot: 0.50
+  profiles:
+    - profile_name: scalper
+      risk_per_trade_pct: 0.5
+      max_open_trades: 3
+      max_trades_per_day: 10
+      max_correlated_pairs: 2
+    - profile_name: day_trader
+      risk_per_trade_pct: 1
+      max_open_trades: 3
+      max_trades_per_day: 5
+      max_correlated_pairs: 2
+    - profile_name: swing_trader
+      risk_per_trade_pct: 1.5
+      max_open_trades: 5
+      max_trades_per_day: 3
+      max_correlated_pairs: 3
+circuit_breaker:
+  enabled: true
+  block_on_mt5_unavailable: true
+  block_on_mt5_trading_disabled: true
+  block_on_prop_firm_unknown: true
+  block_on_loss_limits: true
+  block_on_storage_failure: true
+  notify_admin_on_transition: true
+  block_on_reconciliation_uncertain: true
+watchdog:
+  enabled: true
+  heartbeat_interval_seconds: 30
+  failure_threshold: 3
+  notification_cooldown_seconds: 300
+  notification_ttl_seconds: 300
+  repeat_notifications: false
+  market_data_stale_after_seconds: 180
+  telegram_stale_after_seconds: 180
+  config_path: config/atlax.yaml
+account_mode:
+  enabled: true
+  auto_enforce_when_bound: true
+  context_max_age_seconds: 30
+  max_profile_age_hours: 168
+  max_open_risk_fraction: 0.5
+  new_trade_buffer_fraction: 0.15
+  cost_reserve: 0
+  transaction_cost_reserve: 0
+  slippage_reserve: 0
+  terminal_instance_id: null
+execution:
+  enabled: true
+  require_alert_eligibility: true
+  magic_number: 20260101
+  deviation_points: 20
+  order_filling_mode: FOK
+  use_market_price: true
+  max_retries: 2
+  retry_delay_seconds: 1
+  comment_prefix: ATLAX
+  partial_profit_enabled: true
+  partial_profit_ratio: 0.5
+  move_sl_to_breakeven: true
+profit_protection:
+  enabled: true
+  shadow_mode: false
+  activation_r: 0.25
+  minimum_lock_r: 0.05
+  maximum_giveback_r: 0.2
+  confirmation_bars: 2
+  momentum_loss_enabled: true
+  momentum_shadow_mode: false
+  momentum_source_timeframe: H1
+  minimum_current_profit_r: 0.05
+  momentum_action: TIGHTEN_STOP
+  close_remaining_on_momentum_loss: false
+  include_transaction_cost_buffer: true
+  trailing_stop_enabled: true
+  trailing_activation_r: 0.25
+  trailing_distance_r: 0.20
+  trailing_step_r: 0.05
+  target_proximity_fraction: 0.80
+analytics:
+  enabled: true
+  db_path: data/journal.sqlite
+  ai_advisory_enabled: true
+  ai_provider: gemini
+  ai_model: gemini-3.5-flash
+  ai_api_key: ''
+  ai_base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+  ai_fallback_provider: groq
+  ai_fallback_model: openai/gpt-oss-20b
+  ai_fallback_api_key: ''
+  ai_fallback_base_url: https://api.groq.com/openai/v1
+  ai_report_utc_hour: 23
+  ai_report_utc_minute: 55
+  ai_weekly_report_enabled: true
+  ai_weekly_report_utc_day: 6
+  ai_weekly_report_utc_hour: 22
+  ai_anomaly_detection_enabled: true
+  ai_anomaly_win_rate_drop_threshold: 20
+  ai_anomaly_min_trades: 5
+  ai_performance_min_trades: 10
+  ai_prop_firm_daily_limit: 10
+  ai_prop_firm_cooldown_seconds: 10
+  ai_subscriber_enabled: true
+  ai_subscriber_daily_limit: 10
+  ai_subscriber_per_minute_limit: 3
+  ai_subscriber_cooldown_seconds: 10
+  ai_subscriber_active_timeout_seconds: 120
+  ai_subscriber_abuse_strike_limit: 3
+  ai_subscriber_max_question_chars: 600
+  google_sheets_webhook_url: ''
+  heatmap_path: data/heatmap.json
+  faq_path: docs/20_PUBLIC_FAQ.md
+  replay_enabled: true
+  replay_context_bars_before_parent: 30
+  replay_outcome_forward_bars: 50
+  replay_render_timeout_seconds: 5
+  replay_image_width: 1600
+  replay_image_height: 900
+  replay_image_max_bytes: 2097152
+  replay_cache_dir: data/replay_cache
+  replay_renderer_version: '1.0'
+  replay_request_cooldown_seconds: 10
+approval:
+  require_manual: false
+  auto_reject_after_seconds: 300
+dashboard:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  jwt_secret: ''
+security:
+  webhook_secret: ''
+payments:
+  enabled: true
+  subscription_price_usd: 15
+  premium_subscription_price_usd: 50
+  subscription_duration_days: 30
+  default_style: day_trader
+  manual_review_required: true
+  payment_reference_prefix: ATLAX
+  payment_ttl_hours: 1
+  expiry_reminder_hours:
+    - 72
+    - 24
+  support_contact: '@ocrooxx'
+  crypto:
+    enabled: true
+    wallet_address: ''
+    network: USDC-Solana
+    asset_label: USDC
+  mpesa:
+    enabled: true
+    lipa_number: ''
+    account_reference: ATLAX15
+    amount_tzs: ''
+    amount_hint: ''
+  rails:
+    usdt_ton:
+      enabled: true
+      network: TON
+      asset_label: USDT
+      solana:
+        enabled: true
+        network: Solana
+        asset_label: USDC
+      card:
+        enabled: false
+        checkout_url: ''
+    automatic_verification:
+      enabled: false
+      shadow_mode: true
+      timeout_seconds: 15
+      clock_skew_seconds: 300
+      ton_api_url: https://toncenter.com/api/v3/jettons/transfers
+      ton_usdt_decimals: 6
+      solana_token_decimals: 6
+prop_firm_mode:
+  enabled: true
+  shadow_mode: false
+  selected_profile_id: maven_standard_2step
+  profile_catalog_path: config/prop_firm_profiles.yaml
+  rule_profile_max_age_hours: 168
+  stale_profile_policy: BLOCK_NEW_TRADES
+  require_manual_resume_after_pause: true
+  minimum_shadow_trading_days: 5
+  loss_budget:
+    use_equity_when_required: true
+    configured_max_open_risk_fraction: 0.5
+    configured_new_trade_buffer_fraction: 0.15
+    configured_cost_reserve_fraction: 0.1
+    transaction_cost_reserve: null
+    slippage_reserve: null
+  recovery:
+    enabled: true
+    caution_drawdown_fraction: 0.4
+    recovery_drawdown_fraction: 0.7
+    consecutive_loss_trigger: 3
+    caution_risk_multiplier: 0.5
+    recovery_risk_multiplier: 0.25
+    minimum_risk_multiplier: 0.1
+    restore_after_drawdown_recovered: true
+    restore_profit_cushion: 0.1
+    stabilization_closed_trades: 3
+  profit_protection:
+    inherit_existing: true
+    guardian_shield_max_floating_fraction: 0.4
+  minimum_lot_policy: BLOCK_TRADE

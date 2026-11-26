@@ -73,3 +73,22 @@ The CRT detector cannot be implemented until `docs/rulebooks/CRT_RULEBOOK.md` de
 - Edge cases.
 
 Until then, CRT behavior is `UNKNOWN`.
+
+### CRT Confirmation Modes
+
+The approved rulebook defines the three-candle CRT structure as the primary
+model and permits the confirmation candle to be controlled by the validated
+`crt.require_confirmation_candle` setting. The runtime modes are:
+
+| Setting | Required sequence | Detection close |
+| --- | --- | --- |
+| `true` | Parent, sweep, confirmation | Confirmation candle (`N+2`) |
+| `false` | Parent, sweep | Sweep candle (`N+1`) |
+
+The active local scanner configuration currently uses `false`. This is an
+explicit configured detector mode, not an undocumented strategy rule. The
+gold-standard three-candle fixtures and the active two-candle configuration
+both have dedicated tests. Changing this setting changes detector timing and
+completeness, so it requires configuration review and a release verification;
+it must not be inferred by the Strategy, Confidence, Alert, or Execution
+layers.

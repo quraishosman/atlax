@@ -23,7 +23,7 @@ class TestInvalidation:
         """
         CRT-INVALID-001: sweep.close < parent.low = breakout, not CRT.
         """
-        sweep = make_candle("101.10", "101.80", "96.50", "97.00", hour=4)
+        sweep = make_candle("100.50", "100.60", "96.50", "97.00", hour=4)
         conf = make_candle("97.00", "98.00", "96.00", "97.50", hour=8)
         seq = make_sequence(bullish_parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
@@ -34,7 +34,7 @@ class TestInvalidation:
         """
         CRT-INVALID-001: sweep.close > parent.high = breakout, not CRT.
         """
-        sweep = make_candle("150.80", "153.50", "150.10", "153.00", hour=4)
+        sweep = make_candle("151.00", "153.50", "150.90", "153.00", hour=4)
         conf = make_candle("153.00", "154.00", "152.00", "152.50", hour=8)
         seq = make_sequence(bearish_parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
@@ -45,9 +45,9 @@ class TestInvalidation:
         """
         CRT-BULL-001: confirmation.close <= sweep.high = no MSS.
         """
-        sweep = make_candle("101.10", "101.80", "97.80", "100.80", hour=4)
-        # Confirmation closes BELOW sweep.high (101.80)
-        conf = make_candle("100.80", "101.50", "100.00", "101.00", hour=8)
+        sweep = make_candle("100.40", "100.60", "97.80", "100.50", hour=4)
+        # Confirmation closes BELOW sweep.high (100.60)
+        conf = make_candle("100.50", "101.50", "100.00", "100.50", hour=8)
         seq = make_sequence(bullish_parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
         assert result.detected is False
@@ -57,9 +57,9 @@ class TestInvalidation:
         """
         CRT-BEAR-001: confirmation.close >= sweep.low = no MSS.
         """
-        sweep = make_candle("150.80", "153.50", "150.10", "151.20", hour=4)
-        # Confirmation closes ABOVE sweep.low (150.10)
-        conf = make_candle("151.00", "152.00", "150.50", "151.50", hour=8)
+        sweep = make_candle("151.00", "153.50", "150.90", "151.20", hour=4)
+        # Confirmation closes ABOVE sweep.low (150.90)
+        conf = make_candle("151.00", "152.00", "150.90", "151.50", hour=8)
         seq = make_sequence(bearish_parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
         assert result.detected is False
@@ -147,7 +147,7 @@ class TestEdgeCases:
         """
         parent = make_candle("100.00", "102.50", "98.50", "101.20", hour=0)
         # sweep.close = 98.50 == parent.low = 98.50 (exactly on boundary)
-        sweep = make_candle("101.00", "101.50", "97.80", "98.50", hour=4)
+        sweep = make_candle("100.50", "100.60", "97.80", "98.50", hour=4)
         conf = make_candle("98.50", "102.00", "98.00", "101.60", hour=8)
         seq = make_sequence(parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
@@ -160,7 +160,7 @@ class TestEdgeCases:
         """
         parent = make_candle("150.00", "152.80", "149.20", "150.90", hour=0)
         # sweep.close = 152.80 == parent.high = 152.80 (exactly on boundary)
-        sweep = make_candle("151.00", "153.50", "150.50", "152.80", hour=4)
+        sweep = make_candle("151.00", "153.50", "150.90", "152.80", hour=4)
         conf = make_candle("152.80", "153.00", "149.00", "149.50", hour=8)
         seq = make_sequence(parent, sweep, conf)
         result = detector.detect(seq, atr=default_atr)
@@ -171,7 +171,7 @@ class TestEdgeCases:
         """
         CRT-DATA-002: Forming candles must return UNKNOWN.
         """
-        sweep = make_candle("101.10", "101.80", "97.80", "100.80", hour=4,
+        sweep = make_candle("100.40", "100.60", "97.80", "100.50", hour=4,
                             is_closed=False)
         conf = make_candle("100.90", "103.00", "100.40", "102.70", hour=8)
         seq = make_sequence(bullish_parent, sweep, conf)

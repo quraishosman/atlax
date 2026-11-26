@@ -7,15 +7,16 @@ All scoring weights must be configurable, documented, and sum to 100.
 Authority: docs/09_CONFIDENCE_ENGINE.md, docs/13_CONFIGURATION.md
 
 Proposed Default Weights (documented here as configuration, not trading rules):
-    session_alignment      15.0  — Kill-zone timing is a strong quality signal
-    sweep_distance         15.0  — How far price raided liquidity
-    close_location         20.0  — Strongest single signal: how deep the recovery
-    sweep_wick_ratio       10.0  — Aggressiveness of the liquidity grab
-    htf_zone               15.0  — Parent at HTF structure is high confluence
-    htf_trend_alignment    10.0  — Direction aligns with higher-timeframe bias
-    fvg_present             5.0  — Fair Value Gap after sweep = added confluence
-    msb_on_ltf             10.0  — Lower-timeframe MSB confirms the reversal
-    ─────────────────────────────
+    session_alignment      15.0  -- Kill-zone timing is a strong quality signal
+    sweep_distance         15.0  -- How far price raided liquidity
+    close_location         20.0  -- Strongest single signal: how deep the recovery
+    sweep_wick_ratio       10.0  -- Aggressiveness of the liquidity grab
+    htf_zone               15.0  -- Parent at HTF structure is high confluence
+    htf_trend_alignment    10.0  -- Direction aligns with higher-timeframe bias
+    fvg_present             5.0  -- Fair Value Gap after sweep = added confluence
+    msb_on_ltf             10.0  -- Lower-timeframe MSB confirms the reversal
+    volume_profile_confl    0.0  -- VP confluence (disabled until Phase 6 approval)
+    ---------------------------------------------------------
     Total                 100.0
 """
 
@@ -49,6 +50,8 @@ class ConfidenceConfig:
         htf_trend_weight: HTF trend alignment score weight.
         fvg_weight: FVG-present-after-sweep score weight.
         msb_ltf_weight: LTF market-structure-break score weight.
+        volume_profile_confluence_weight: VP POC/VAH/VAL confluence weight
+            (default 0.0 = disabled until Phase 6 shadow results approve it).
 
         sweep_distance_ideal_min_pips: Minimum ideal sweep distance (full score).
         sweep_distance_ideal_max_pips: Maximum ideal sweep distance (full score).
@@ -69,6 +72,7 @@ class ConfidenceConfig:
     htf_trend_weight: float
     fvg_weight: float
     msb_ltf_weight: float
+    volume_profile_confluence_weight: float
 
     # Scoring parameters for continuous factors
     sweep_distance_ideal_min_pips: float
@@ -88,6 +92,7 @@ class ConfidenceConfig:
             + self.htf_trend_weight
             + self.fvg_weight
             + self.msb_ltf_weight
+            + self.volume_profile_confluence_weight
         )
         if abs(total - 100.0) > 0.01:
             raise ValueError(
@@ -119,6 +124,7 @@ class ConfidenceConfig:
             "htf_trend": self.htf_trend_weight,
             "fvg": self.fvg_weight,
             "msb_ltf": self.msb_ltf_weight,
+            "volume_profile_confluence": self.volume_profile_confluence_weight,
         }
         raw = json.dumps(weights, sort_keys=True)
         return hashlib.sha256(raw.encode()).hexdigest()[:12]
@@ -162,6 +168,7 @@ def load_confidence_config(config_path: str) -> ConfidenceConfig:
             htf_trend_weight=float(weights.get("htf_trend", 10.0)),
             fvg_weight=float(weights.get("fvg", 5.0)),
             msb_ltf_weight=float(weights.get("msb_ltf", 10.0)),
+            volume_profile_confluence_weight=float(weights.get("volume_profile_confluence", 0.0)),
             sweep_distance_ideal_min_pips=float(params.get("sweep_distance_ideal_min_pips", 3.0)),
             sweep_distance_ideal_max_pips=float(params.get("sweep_distance_ideal_max_pips", 30.0)),
             close_location_bull_ideal_min=float(params.get("close_location_bull_ideal_min", 0.40)),

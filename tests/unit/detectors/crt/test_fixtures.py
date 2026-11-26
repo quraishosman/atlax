@@ -41,14 +41,14 @@ class TestBullishFixture:
         assert result.metadata.midpoint_target == Decimal("100.50")
 
     def test_bullish_metadata_sweep_distance(self, detector, bullish_sequence, default_atr):
-        """sweep_distance_pips = |98.50 - 97.80| / 0.0001 = 7000."""
+        """sweep_distance_pips = |98.50 - 97.50| / 0.0001 = 10000 (bullish) or |153.90 - 152.80| / 0.0001 = 11000 (bearish)."""
         result = detector.detect(bullish_sequence, atr=default_atr)
-        assert result.metadata.sweep_distance_pips == 7000.0
+        assert result.metadata.sweep_distance_pips == 10000.0
 
     def test_bullish_metadata_close_ratio(self, detector, bullish_sequence, default_atr):
-        """close_location_ratio = (100.80 - 98.50) / (102.50 - 98.50) = 0.575."""
+        """close_location_ratio = (100.20 - 98.50) / (102.50 - 98.50) = 1.70/4.00 = 0.425."""
         result = detector.detect(bullish_sequence, atr=default_atr)
-        assert result.metadata.close_location_ratio == pytest.approx(0.575, abs=0.001)
+        assert result.metadata.close_location_ratio == pytest.approx(0.425, abs=0.001)
 
     def test_bullish_no_buy_in_output(self, detector, bullish_sequence, default_atr):
         """CRT-STRAT-001: Output must never contain BUY."""
@@ -84,9 +84,10 @@ class TestBearishFixture:
         assert result.metadata.crt_low == Decimal("149.20")
 
     def test_bearish_metadata_sweep_distance(self, detector, bearish_sequence, default_atr):
-        """sweep_distance_pips = |153.50 - 152.80| / 0.0001 = 7000."""
+        """sweep_distance_pips = |153.75 - 152.80| / 0.0001 = 9500."""
         result = detector.detect(bearish_sequence, atr=default_atr)
-        assert result.metadata.sweep_distance_pips == 7000.0
+        assert result.metadata.sweep_distance_pips == 9500.0
+
 
     def test_bearish_no_sell_in_output(self, detector, bearish_sequence, default_atr):
         """CRT-STRAT-001: Output must never contain SELL."""

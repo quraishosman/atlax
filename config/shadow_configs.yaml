@@ -1,0 +1,16 @@
+# Counterfactual Simulator Shadow Profiles
+# These profiles define alternate realities for the system to test parallel to live execution.
+shadow_profiles:
+  shadow_aggressive_risk:
+    description: "What if we risked 2% instead of the default?"
+    risk_override:
+      percent_per_trade: 2.0
+    profit_protection_override:
+      enabled: false
+
+  shadow_tight_protection:
+    description: "What if we activated breakeven at 0.5R instead of 0.25R?"
+    profit_protection_override:
+      enabled: true
+      activation_r: 0.5
+      giveback_r: 0.1

@@ -27,6 +27,7 @@ Tests must not encode undocumented trading rules.
 - Logging tests.
 - Security tests.
 - Regression tests for bug fixes.
+- Signal Passport identity, lifecycle, aggregation, and subscriber-surface tests.
 
 ---
 

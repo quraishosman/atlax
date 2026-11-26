@@ -1,0 +1,2 @@
+# Optional analytics dependency for Signal Replay PNG rendering.
+matplotlib>=3.8,<4

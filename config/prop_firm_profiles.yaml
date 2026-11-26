@@ -1,0 +1,309 @@
+# ATLAX Prop-Firm Rule Profile Catalog
+#
+# Authority: docs/42_PROP_FIRM_LOSS_BUDGET_PLAN.md (Section 4 & 12)
+# These profiles are versioned, source-backed rule records.
+# Values must be derived from official firm sources only.
+# UNKNOWN is used for any rule not verified from an official source URL.
+# Rules must never be inferred from the firm name alone.
+#
+# Each profile is read-only at runtime. Changes require a version bump
+# and re-verification with the official source URL.
+
+profiles:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # FTMO — Standard Challenge (2-Step)
+  # Source: https://ftmo.com/en/trading-objectives/
+  # Verified: 2026-09-19
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "ftmo_standard_challenge"
+    firm_name: "FTMO"
+    program_name: "Standard Challenge"
+    phase: "challenge"
+    account_type: "standard_2step"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:95787bc858a59f20a3cd161178028aca0d66acf58c34bb32357b8172decda2b4"
+    source_urls:
+      - "https://ftmo.com/en/trading-objectives/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "STATIC"
+      basis: "INITIAL_BALANCE"
+      percentage: 10.0        # Equity must not drop below 90% of initial balance
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_EQUITY"
+      percentage: 5.0         # Recalculated daily at 00:00 CEST
+      reset_timezone: "Europe/Prague"
+    minimum_trading_days: 4
+    notes: >
+      Both overall and daily limits track equity (balance + open P&L +
+      swaps - commissions). A momentary breach of either limit constitutes
+      a violation. Reset is at 00:00 CE(S)T.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Topstep — Express Funded Account (with DLL)
+  # Source: https://help.topstep.com/en/articles/8284197-trading-combine-parameters
+  # Source: https://help.topstep.com/en/articles/10490293-daily-loss-limit
+  # Verified: 2026-09-19
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "topstep_50k_express_funded"
+    firm_name: "Topstep"
+    program_name: "Express Funded Account"
+    phase: "funded"
+    account_type: "express_funded_50k"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:b5b5ec308e017615566b004f5783f8eee338fe8969edb959af187949809af04f"
+    source_urls:
+      - "https://help.topstep.com/en/articles/8284197-trading-combine-parameters"
+      - "https://help.topstep.com/en/articles/10490293-daily-loss-limit-in-the-trading-combine-and-express-funded-account"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "END_OF_DAY_TRAILING"
+      basis: "OPENING_BALANCE"
+      amount: 2000.0           # $50k account: $2,000 MLL (fixed dollar amount per Topstep)
+      reset_timezone: "America/Chicago"  # 5 PM CT to 3:10 PM CT session
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_BALANCE"
+      amount: 1000.0           # $50k account: $1,000 DLL (mandatory on funded)
+      reset_timezone: "America/Chicago"
+    notes: >
+      EOD trailing: the drawdown floor moves up with EOD closed balance,
+      never intraday. The floor locks permanently once it reaches the
+      initial account balance. Real-time enforcement: touching the MLL
+      intraday triggers liquidation. The $1,000 DLL is fixed at purchase.
+
+  - profile_id: "topstep_100k_express_funded"
+    firm_name: "Topstep"
+    program_name: "Express Funded Account"
+    phase: "funded"
+    account_type: "express_funded_100k"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:65e016d475f0c6832a50728060cf1b773e67cf196ea9ae60d8aefb5e44d615d1"
+    source_urls:
+      - "https://help.topstep.com/en/articles/8284197-trading-combine-parameters"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "END_OF_DAY_TRAILING"
+      basis: "OPENING_BALANCE"
+      amount: 3000.0
+      reset_timezone: "America/Chicago"
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_BALANCE"
+      amount: 2000.0
+      reset_timezone: "America/Chicago"
+    notes: "100k variant of topstep_50k_express_funded. Same rule engine."
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # FundedNext — Stellar 2-Step
+  # Source: https://fundednext.com/
+  # Verified: 2026-09-19
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "fundednext_stellar_2step"
+    firm_name: "FundedNext"
+    program_name: "Stellar 2-Step"
+    phase: "challenge"
+    account_type: "stellar_2step"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:ca56556823f72e9de645afa5840783b20c72ef19587e73b50d92fc375e6110ee"
+    source_urls:
+      - "https://fundednext.com/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "TRAILING"
+      basis: "HIGH_WATERMARK_EQUITY"
+      percentage: 10.0         # Trailing from highest equity reached
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "INITIAL_BALANCE"  # Calculated on initial balance, NOT current equity
+      percentage: 5.0           # Resets at server midnight
+      reset_timezone: "UTC"
+    notes: >
+      CRITICAL: Daily loss uses INITIAL_BALANCE, not current balance or equity.
+      A $100k account always has a $5,000 daily loss limit regardless of profits.
+      Both closed and floating losses count. Resets at midnight server time (UTC).
+
+  - profile_id: "fundednext_stellar_1step"
+    firm_name: "FundedNext"
+    program_name: "Stellar 1-Step"
+    phase: "challenge"
+    account_type: "stellar_1step"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:5aa9349bbee5ff20af8e528dc656490cbca5f62f6dc003e66ff941a1b664c18c"
+    source_urls:
+      - "https://fundednext.com/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "TRAILING"
+      basis: "HIGH_WATERMARK_EQUITY"
+      percentage: 8.0
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "INITIAL_BALANCE"
+      percentage: 3.0
+      reset_timezone: "UTC"
+    notes: "1-Step Stellar: tighter 3% daily limit. Same initial-balance basis rule."
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # The 5%ers — High Stakes 2-Step
+  # Source: https://the5ers.com/high-stakes/
+  # Verified: 2026-09-19
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "the5ers_high_stakes_2step"
+    firm_name: "The 5%ers"
+    program_name: "High Stakes"
+    phase: "challenge"
+    account_type: "high_stakes_2step"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:13a81440074652ae9aca7f26f6b0ab6af374b5d4e8249ed2bf5e028e9b2b660c"
+    source_urls:
+      - "https://the5ers.com/high-stakes/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "STATIC"
+      basis: "INITIAL_BALANCE"
+      percentage: 10.0         # Account equity cannot fall below 90% of initial
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_EQUITY"
+      percentage: 5.0          # 5% of starting equity for that day
+      reset_timezone: "UTC"
+    minimum_trading_days: 3   # 3 profitable days required (each day ≥0.5% profit)
+    notes: >
+      Consistency rule applies on funded stage only (50% rule).
+      News trading prohibited 2 min before/after high-impact events.
+      Overnight and weekend holding is allowed.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Maven Trading — Standard 2-Step — 2K — Phase 2
+  # Source: https://maventrading.com/
+  # Verified: 2026-09-19 against the official 2K Standard 2-Step listing
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "maven_standard_2step"
+    firm_name: "Maven Trading"
+    program_name: "Standard 2-Step"
+    phase: "phase_2"
+    account_type: "standard_2step_2k"
+    currency: "USD"
+    version: "1.1.0"
+    content_hash: "sha256:dba014615e745adc5cb5ad1a433e65b37b1b0c8a80441dbd551af4a88a7a6c91"
+    source_urls:
+      - "https://maventrading.com/"
+    source_retrieved_at: "2026-09-19T16:50:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    nominal_balance: 2000.0
+    overall_loss:
+      mode: "STATIC"
+      basis: "INITIAL_BALANCE"
+      percentage: 8.0          # Official Standard 2-Step maximum loss
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_EQUITY"  # Higher of equity or balance at 00:00 UTC
+      percentage: 4.0          # Official daily loss; reset at 00:00 UTC
+      reset_timezone: "UTC"
+    notes: >
+      Phase 2 of the 2K Standard 2-Step program. The official listing shows
+      an 8% maximum loss and 4% daily loss. ATLAX uses opening equity as the
+      conservative daily reference until a more specific official reset
+      calculation is published. Maven Instant is a separate profile.
+
+  - profile_id: "maven_instant"
+    firm_name: "Maven Trading"
+    program_name: "Maven Instant"
+    phase: "funded"
+    account_type: "instant_funded"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:1901496ac7c9f88f1738e5d3c8b7e4c133f3af050be91970d719bbad20792528"
+    source_urls:
+      - "https://maventrading.com/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "TRAILING"
+      basis: "HIGH_WATERMARK_EQUITY"
+      percentage: 3.0          # Tighter trailing for Instant program
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_EQUITY"
+      percentage: 2.0          # Tighter daily limit for Instant
+      reset_timezone: "UTC"
+    notes: "Maven Instant: tighter 2%/3% limits. See maven_standard_2step notes."
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Blue Guardian — Standard Challenge
+  # Source: https://blueguardian.co/
+  # Verified: 2026-09-19
+  # ──────────────────────────────────────────────────────────────────────────
+  - profile_id: "blue_guardian_standard_challenge"
+    firm_name: "Blue Guardian"
+    program_name: "Standard Challenge"
+    phase: "challenge"
+    account_type: "standard_challenge"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:d5adec29b506bf0149a3cf74ed228b50cedfb352cba9549f4ae232374a77ef73"
+    source_urls:
+      - "https://blueguardian.co/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "TRAILING"
+      basis: "HIGH_WATERMARK_BALANCE"
+      percentage: 6.0          # Trailing from highest balance; locks at initial once in profit
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_BALANCE"  # Higher of balance or equity at 5 PM EST reset
+      percentage: 4.0           # Resets at 5:00 PM EST
+      reset_timezone: "America/New_York"
+    notes: >
+      Guardian Shield: automated auto-close at 2% floating loss on standard
+      accounts. ATLAX must keep all open floating loss well below 2% to
+      ensure ATLAX — not Blue Guardian — controls the exit.
+      A first Guardian Shield breach reduces payout split to 50%.
+      A second breach terminates the account permanently.
+
+  - profile_id: "blue_guardian_instant"
+    firm_name: "Blue Guardian"
+    program_name: "Instant Funding"
+    phase: "funded"
+    account_type: "instant_funded"
+    currency: "USD"
+    version: "1.0.0"
+    content_hash: "sha256:6e9608ba9b449aee93734b5d7258d9a6ebcb72c08c1ec3939706b893843b530c"
+    source_urls:
+      - "https://blueguardian.co/"
+    source_retrieved_at: "2026-09-19T12:00:00+00:00"
+    effective_at: "2026-09-19T00:00:00+00:00"
+    overall_loss:
+      mode: "TRAILING"
+      basis: "HIGH_WATERMARK_BALANCE"
+      percentage: 6.0
+      reset_timezone: null
+    daily_loss:
+      mode: "STATIC"
+      basis: "OPENING_BALANCE"
+      percentage: 3.0          # Tighter 3% for Instant accounts
+      reset_timezone: "America/New_York"
+    notes: "Guardian Shield triggers at 1% floating loss for Instant accounts."

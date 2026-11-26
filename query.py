@@ -1,0 +1,1 @@
+import sqlite3; import pandas as pd; conn = sqlite3.connect('C:/Users/HP/Desktop/Atlax/data/journal.sqlite'); df = pd.read_sql_query('SELECT * FROM journal_entries ORDER BY rowid DESC LIMIT 10', conn); df.to_json('recent_trades.json', orient='records')

@@ -28,10 +28,16 @@ Before writing code, read the engineering specification in order:
 16. `docs/15_LOGGING.md`
 17. `docs/16_SECURITY.md`
 18. `docs/17_CONTRIBUTING.md`
-19. `docs/rulebooks/CRT_RULEBOOK.md`
-20. `docs/rulebooks/CRT_SOURCE_INTAKE.md`
-21. `docs/rulebooks/CRT_RULE_APPROVAL.md`
-22. `docs/glossary.md`
+19. `docs/18_TELEGRAM_BOT_EXPERIENCE_PLAN.md`
+20. `docs/20_PUBLIC_FAQ.md`
+21. `docs/21_SIGNAL_PASSPORT.md`
+22. `docs/22_SUBSCRIPTION_LIFECYCLE.md`
+23. `docs/23_POSTGRES_STORAGE.md`
+24. `docs/24_POSTGRES_REPOSITORY_CUTOVER_PLAN.md`
+25. `docs/rulebooks/CRT_RULEBOOK.md`
+26. `docs/rulebooks/CRT_SOURCE_INTAKE.md`
+27. `docs/rulebooks/CRT_RULE_APPROVAL.md`
+28. `docs/glossary.md`
 
 Architecture decisions are recorded in `docs/decisions/`.
 

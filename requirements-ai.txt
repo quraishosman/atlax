@@ -1,0 +1,2 @@
+# OpenAI-compatible client used for Gemini primary and Groq fallback providers.
+openai>=1.0,<2

@@ -9,6 +9,8 @@ Authority Documents:
     - docs/07_DETECTOR_SPECIFICATION.md (detector input contract)
     - docs/rulebooks/CRT_RULEBOOK.md, CRT-DATA-001 (required OHLC fields)
     - docs/rulebooks/CRT_RULEBOOK.md, CRT-DATA-002 (closed candle requirement)
+    - docs/40_VOLUME_PROFILE_CONFLUENCE_PLAN.md §4 (volume field contract)
+    - docs/decisions/ADR-017.md (volume source approval)
 
 Design Decisions:
     - Decimal for all price fields: avoids IEEE 754 floating-point precision
@@ -16,6 +18,8 @@ Design Decisions:
     - frozen=True: enforces immutability. Detectors must never mutate inputs.
     - tuple instead of list for CandleSequence.candles: immutable sequence.
     - volume is optional per docs/06_DATA_MODELS.md ("when available").
+    - tick_volume and real_volume are separately preserved per ADR-017 so the
+      Volume Profile engine can select the approved source at evaluation time.
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
+
+from core.models.volume_source import VolumeQuality
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,20 @@ class Candle:
     close: Decimal
     is_closed: bool
     volume: Optional[Decimal] = None
+    tick_volume: Optional[int] = None
+    """MT5 broker tick-volume count for this candle period.
+
+    Present when the terminal provides it via copy_rates_from_pos.
+    This is a broker-local activity proxy; it must not be presented as
+    consolidated global Forex volume (ADR-017, Doc 40 §4).
+    """
+    real_volume: Optional[int] = None
+    """MT5 real volume for this candle period, when available.
+
+    Only populated when the broker terminal exposes real_volume.
+    Takes precedence over tick_volume for Volume Profile calculation
+    once real_volume use is approved (ADR-017).
+    """
 
     def __post_init__(self) -> None:
         """Validate candle invariants on construction."""
@@ -129,6 +149,23 @@ class Candle:
         """
         return (self.high + self.low) / 2
 
+    @property
+    def volume_quality(self) -> VolumeQuality:
+        """Quality classification of this candle's volume data.
+
+        Returns:
+            VolumeQuality.REAL if real_volume is present and positive.
+            VolumeQuality.BROKER_TICK_PROXY if tick_volume is present and positive.
+            VolumeQuality.UNKNOWN if both are absent or zero.
+
+        Authority: docs/40_VOLUME_PROFILE_CONFLUENCE_PLAN.md §4
+        """
+        if self.real_volume is not None and self.real_volume > 0:
+            return VolumeQuality.REAL
+        if self.tick_volume is not None and self.tick_volume > 0:
+            return VolumeQuality.BROKER_TICK_PROXY
+        return VolumeQuality.UNKNOWN
+
     def __str__(self) -> str:
         return (
             f"Candle({self.symbol} {self.timeframe} "
@@ -143,7 +180,8 @@ class Candle:
             f"open_time={self.open_time!r}, close_time={self.close_time!r}, "
             f"open={self.open!r}, high={self.high!r}, low={self.low!r}, "
             f"close={self.close!r}, is_closed={self.is_closed!r}, "
-            f"volume={self.volume!r})"
+            f"volume={self.volume!r}, "
+            f"tick_volume={self.tick_volume!r}, real_volume={self.real_volume!r})"
         )
 
 

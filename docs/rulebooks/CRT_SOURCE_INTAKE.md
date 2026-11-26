@@ -5,7 +5,11 @@ Status: Active Workflow
 Last Updated: 2026-07-14  
 Purpose: Capture CRT source material in a format that can be reviewed and promoted into `CRT_RULEBOOK.md`.
 
-**Approval Note**: All sources captured on 2026-07-14 were reviewed by the project lead and approved on 2026-07-14. Rules derived from these sources are now APPROVED in `CRT_RULEBOOK.md`.
+**Approval Note**: The project lead approved the rule interpretations promoted
+into `CRT_RULEBOOK.md` on 2026-07-14. This intake also contains a pending
+primary Romeo source and reference-only material; a source record or research
+claim is not executable authority unless the corresponding rule is explicitly
+present and `APPROVED` in `CRT_RULEBOOK.md`.
 
 ---
 
@@ -19,7 +23,10 @@ Every source must be captured, interpreted, reviewed, and approved before it can
 
 ## Source Intake Form
 
-The sources below were captured on 2026-07-14 from web and YouTube research. All are `RESEARCH_ONLY` or `PENDING_REVIEW`. None are approved for implementation.
+The sources below were captured on 2026-07-14 from web and YouTube research.
+Some source records are approved as evidence for existing rulebook entries,
+while other records remain `PENDING_SOURCE` or `REFERENCE_ONLY`. Only the
+approved rules in `CRT_RULEBOOK.md` may be implemented.
 
 ---
 
@@ -213,9 +220,9 @@ segments:
     proposed_rule_category: []
     proposed_rule_text: UNKNOWN
     confidence: UNKNOWN
-    reviewer_notes: This is the required primary source. All PROPOSED rules need validation
-      against direct Romeo video content with timestamps before they can be APPROVED.
-      Project lead must provide Romeo YouTube video links for final rule approval.
+    reviewer_notes: This primary source is still pending. It may provide future
+      evidence, but it cannot amend or replace an approved rulebook entry until
+      the project lead reviews a timestamped source and approves the resulting rule.
 ```
 
 ---

@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "shadow-replay.v1",
+  "cases": [
+    {
+      "name": "complete_detected_event",
+      "expectedStatus": "OK",
+      "expectedReason": "shadow_detector_contract_valid",
+      "event": {
+        "schemaVersion": "1.0",
+        "messageId": "evt_fixture_valid",
+        "createdAt": "2026-08-14T10:15:00Z",
+        "receivedAt": "2026-08-14T10:15:01Z",
+        "source": {"platform": "TradingView", "scriptVersion": "tv-1", "settingsVersion": "settings-1"},
+        "correlationId": "corr_fixture_valid",
+        "payload": {
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "eventType": "detector_result",
+          "detector": "CRTDetector",
+          "detected": true,
+          "eventTime": "2026-08-14T10:15:00Z",
+          "metadata": {
+            "detectorContractVersion": "1.0",
+            "scriptVersion": "tv-1",
+            "settingsVersion": "settings-1",
+            "rulebookVersion": "CRT-1.0",
+            "configurationVersion": "config-1",
+            "confidence": 72,
+            "reason": "approved detector evidence present",
+            "invalidation": "UNKNOWN",
+            "evidence": {"detected": true, "pattern": "bullish_crt"}
+          }
+        }
+      }
+    },
+    {
+      "name": "complete_no_detection_event",
+      "expectedStatus": "OK",
+      "expectedReason": "shadow_detector_contract_valid",
+      "event": {
+        "schemaVersion": "1.0",
+        "messageId": "evt_fixture_no_detection",
+        "createdAt": "2026-08-14T10:30:00Z",
+        "receivedAt": "2026-08-14T10:30:01Z",
+        "source": {"platform": "TradingView", "scriptVersion": "tv-1", "settingsVersion": "settings-1"},
+        "correlationId": "corr_fixture_no_detection",
+        "payload": {
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "eventType": "detector_result",
+          "detector": "CRTDetector",
+          "detected": false,
+          "eventTime": "2026-08-14T10:30:00Z",
+          "metadata": {
+            "detectorContractVersion": "1.0",
+            "scriptVersion": "tv-1",
+            "settingsVersion": "settings-1",
+            "rulebookVersion": "CRT-1.0",
+            "configurationVersion": "config-1",
+            "confidence": 0,
+            "reason": "no approved pattern matched",
+            "invalidation": "not_applicable",
+            "evidence": {"detected": false, "pattern": "none"}
+          }
+        }
+      }
+    },
+    {
+      "name": "incomplete_detector_metadata",
+      "expectedStatus": "UNKNOWN",
+      "expectedReasonPrefix": "detector_metadata_incomplete:",
+      "event": {
+        "schemaVersion": "1.0",
+        "messageId": "evt_fixture_incomplete",
+        "createdAt": "2026-08-14T10:45:00Z",
+        "receivedAt": "2026-08-14T10:45:01Z",
+        "source": {"platform": "TradingView"},
+        "correlationId": "corr_fixture_incomplete",
+        "payload": {
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "eventType": "detector_result",
+          "detector": "CRTDetector",
+          "detected": true,
+          "eventTime": "2026-08-14T10:45:00Z",
+          "metadata": {"sourceVersion": "fixture"}
+        }
+      }
+    },
+    {
+      "name": "retired_timeframe",
+      "expectedStatus": "UNKNOWN",
+      "expectedReason": "retired_timeframe",
+      "event": {
+        "schemaVersion": "1.0",
+        "messageId": "evt_fixture_retired",
+        "createdAt": "2026-08-14T11:00:00Z",
+        "receivedAt": "2026-08-14T11:00:01Z",
+        "source": {"platform": "TradingView"},
+        "correlationId": "corr_fixture_retired",
+        "payload": {
+          "symbol": "EURUSD",
+          "timeframe": "M1",
+          "eventType": "detector_result",
+          "detector": "CRTDetector",
+          "detected": true,
+          "eventTime": "2026-08-14T11:00:00Z",
+          "metadata": {}
+        }
+      }
+    },
+    {
+      "name": "unauthorized_strategy_direction",
+      "expectedStatus": "UNKNOWN",
+      "expectedReason": "detector_payload_contains_strategy_decision",
+      "event": {
+        "schemaVersion": "1.0",
+        "messageId": "evt_fixture_direction",
+        "createdAt": "2026-08-14T11:15:00Z",
+        "receivedAt": "2026-08-14T11:15:01Z",
+        "source": {"platform": "TradingView"},
+        "correlationId": "corr_fixture_direction",
+        "payload": {
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "eventType": "detector_result",
+          "detector": "CRTDetector",
+          "detected": true,
+          "eventTime": "2026-08-14T11:15:00Z",
+          "metadata": {
+            "detectorContractVersion": "1.0",
+            "scriptVersion": "tv-1",
+            "settingsVersion": "settings-1",
+            "rulebookVersion": "CRT-1.0",
+            "configurationVersion": "config-1",
+            "confidence": 72,
+            "reason": "approved detector evidence present",
+            "invalidation": "UNKNOWN",
+            "evidence": {"detected": true, "pattern": "bullish_crt"},
+            "direction": "BUY"
+          }
+        }
+      }
+    },
+    {
+      "name": "malformed_normalized_event",
+      "expectedStatus": "UNKNOWN",
+      "expectedReasonPrefix": "invalid_normalized_event:",
+      "event": {"schemaVersion": "1.0", "messageId": "evt_fixture_malformed", "correlationId": "corr_fixture_malformed"}
+    }
+  ]
+}

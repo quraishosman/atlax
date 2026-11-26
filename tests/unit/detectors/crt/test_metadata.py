@@ -27,15 +27,16 @@ class TestSweepDistancePips:
             bullish_parent, bullish_sweep,
             Decimal("0.0001"), "bullish"
         )
-        assert result == 7000.0
+        assert result == 10000.0
 
     def test_bearish_sweep_distance(self, bearish_parent, bearish_sweep):
-        """Distance = |153.50 - 152.80| / 0.0001 = 7000 pips."""
+        """Distance = |153.75 - 152.80| / 0.0001 = 9500 pips."""
         result = compute_sweep_distance_pips(
             bearish_parent, bearish_sweep,
             Decimal("0.0001"), "bearish"
         )
-        assert result == 7000.0
+        assert result == 9500.0
+
 
     def test_zero_pip_size_returns_none(self, bullish_parent, bullish_sweep):
         """Zero pip_size should safely return None."""
@@ -50,9 +51,10 @@ class TestCloseLocationRatio:
     """CRT-QUALITY-001: close_location_ratio."""
 
     def test_bullish_close_ratio(self, bullish_parent, bullish_sweep):
-        """Ratio = (100.80 - 98.50) / (102.50 - 98.50) = 0.575."""
+        """Ratio = (100.20 - 98.50) / (102.50 - 98.50) = 1.70 / 4.00 = 0.425."""
         result = compute_close_location_ratio(bullish_parent, bullish_sweep)
-        assert result == pytest.approx(0.575, abs=0.001)
+        assert result == pytest.approx(0.425, abs=0.001)
+
 
     def test_close_at_crl_is_zero(self):
         """A sweep closing exactly at CRL → ratio = 0.0."""
@@ -80,18 +82,19 @@ class TestSweepWickRatio:
     """CRT-QUALITY-001: sweep_wick_ratio."""
 
     def test_bullish_wick_ratio(self, bullish_parent, bullish_sweep):
-        """Wick = |98.50 - 97.80| / (102.50 - 98.50) = 0.70 / 4.00 = 0.175."""
+        """Wick = |98.50 - 97.50| / (102.50 - 98.50) = 1.00 / 4.00 = 0.25."""
         result = compute_sweep_wick_ratio(
             bullish_parent, bullish_sweep, "bullish"
         )
-        assert result == pytest.approx(0.175, abs=0.001)
+        assert result == pytest.approx(0.25, abs=0.001)
 
     def test_bearish_wick_ratio(self, bearish_parent, bearish_sweep):
-        """Wick = |153.50 - 152.80| / (152.80 - 149.20) = 0.70 / 3.60."""
+        """Wick = |153.75 - 152.80| / (152.80 - 149.20) = 0.95 / 3.60 = 0.2639."""
         result = compute_sweep_wick_ratio(
             bearish_parent, bearish_sweep, "bearish"
         )
-        assert result == pytest.approx(0.1944, abs=0.001)
+        assert result == pytest.approx(0.2639, abs=0.001)
+
 
 
 class TestSessionAlignment:

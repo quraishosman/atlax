@@ -24,10 +24,27 @@ Before making project changes, read the relevant engineering specifications. For
 16. `docs/15_LOGGING.md`
 17. `docs/16_SECURITY.md`
 18. `docs/17_CONTRIBUTING.md`
-19. `docs/rulebooks/CRT_RULEBOOK.md`
-20. `docs/rulebooks/CRT_SOURCE_INTAKE.md`
-21. `docs/rulebooks/CRT_RULE_APPROVAL.md`
-22. `docs/glossary.md`
+19. `docs/18_TELEGRAM_BOT_EXPERIENCE_PLAN.md`
+20. `docs/20_PUBLIC_FAQ.md`
+21. `docs/rulebooks/CRT_RULEBOOK.md`
+22. `docs/rulebooks/CRT_SOURCE_INTAKE.md`
+23. `docs/rulebooks/CRT_RULE_APPROVAL.md`
+24. `docs/glossary.md`
+25. `docs/21_SIGNAL_PASSPORT.md`
+26. `docs/22_SUBSCRIPTION_LIFECYCLE.md`
+27. `docs/23_POSTGRES_STORAGE.md`
+28. `docs/24_POSTGRES_REPOSITORY_CUTOVER_PLAN.md`
+29. `docs/25_ATR_QUALITY_OVERLAY_PLAN.md`
+30. `docs/rulebooks/ATR_QUALITY_OVERLAY.md`
+31. `docs/decisions/ADR-010.md`
+32. `docs/27_KEY_LEVEL_EVALUATOR_PLAN.md`
+33. `docs/rulebooks/KEY_LEVEL_EVALUATOR.md`
+34. `docs/decisions/ADR-011.md`
+35. `docs/33_HTF_MOMENTUM_CONFIDENCE_PLAN.md`
+36. `docs/decisions/ADR-013.md`
+37. `docs/42_PROP_FIRM_LOSS_BUDGET_PLAN.md`
+38. `docs/43_PROP_FIRM_ACCOUNT_MODE_SWITCH_PLAN.md`
+39. `docs/decisions/ADR-023.md`
 
 Also review applicable ADRs in `docs/decisions/`.
 
@@ -65,6 +82,15 @@ Supporting module authorities:
 - Risk behavior: `docs/10_RISK_ENGINE.md`
 - Execution behavior: `docs/11_EXECUTION_ENGINE.md`
 - Analytics and AI advisory behavior: `docs/12_ANALYTICS_ENGINE.md`
+- Signal identity, lifecycle, and public performance behavior: `docs/21_SIGNAL_PASSPORT.md`
+- Subscription access, expiry, reminders, and payment lifecycle behavior: `docs/22_SUBSCRIPTION_LIFECYCLE.md`
+- Shared PostgreSQL storage and migration behavior: `docs/23_POSTGRES_STORAGE.md`
+- PostgreSQL repository cutover gates: `docs/24_POSTGRES_REPOSITORY_CUTOVER_PLAN.md`
+- ATR quality classification and premium signal routing: `docs/25_ATR_QUALITY_OVERLAY_PLAN.md`
+- ATR formulas and quality-overlay authority: `docs/rulebooks/ATR_QUALITY_OVERLAY.md`
+- Key-level evaluator rollout and delivery boundaries: `docs/27_KEY_LEVEL_EVALUATOR_PLAN.md`
+- Key-level formulas and approval authority: `docs/rulebooks/KEY_LEVEL_EVALUATOR.md`
+- H1 momentum confidence evidence and rollout: `docs/33_HTF_MOMENTUM_CONFIDENCE_PLAN.md`
 - Logging behavior: `docs/15_LOGGING.md`
 - Security and MCP gateway behavior: `docs/16_SECURITY.md`
 
@@ -92,6 +118,7 @@ Never sacrifice correctness for speed.
 - Analytics Layer handles journal, statistics, reports, expectancy, win rate, risk metrics, and advisory AI analysis.
 - Multi-timeframe profile routing is documented in `docs/03_ARCHITECTURE.md`.
 - Multiple timeframe events for the same pair must be preserved with profile and timeframe context.
+- H1 momentum context is quality evidence only until its numeric adjustment is approved; it must not suppress detection or bypass risk.
 
 ## Settings Engine
 
